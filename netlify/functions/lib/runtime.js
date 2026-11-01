@@ -19,7 +19,7 @@ const ALLOWED = new Set([
   'getPublicConfig', 'getRegisterNames', 'registerStudent', 'loginStudent', 'logoutStudent',
   'requestPasswordReset', 'changePassword', 'getMyScores',
   'teacherLogin', 'teacherLogout', 'teacherInit', 'teacherGetAttendance', 'teacherSetAttendance',
-  'teacherSetAttendanceBulk', 'teacherGetScores', 'teacherSetScore', 'teacherGetStudents',
+  'teacherSetAttendanceBulk', 'teacherGetScores', 'teacherSetScore', 'teacherSetAssignmentWeek', 'teacherGetStudents',
   'teacherResetPassword', 'teacherDismissReset', 'teacherGetPhotos'
 ]);
 

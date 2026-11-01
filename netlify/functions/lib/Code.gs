@@ -25,9 +25,7 @@ const CONFIG = {
   MAX_FAILED_REGISTER: 10,     // ลองเลขประจำตัวผิดเกินนี้ต่อชื่อหนึ่งคน จะถูกล็อกชั่วคราว
   LOCKOUT_SECONDS: 900,        // 15 นาที
   HASH_ROUNDS: 300,
-  LATE_PENALTY: 1,             // ส่งช้าหักกี่คะแนน
-  LATE_TYPES: ['แลป', 'แบบฝึกหัด'],   // ประเภทงานที่มีตัวเลือก "ส่งช้า"
-  QUIZ_WEEKS: { quiz1: 3, quiz2: 7, quiz3: 11, quiz4: 13, quiz5: 16 }   // ใช้เมื่อชีต assignments ไม่มีคอลัมน์ week
+  LATE_PENALTIES: { 'แลป': 0.5, 'แบบฝึกหัด': 1 }   // ส่งช้าหักกี่คะแนน แยกตามประเภทงาน (ประเภทที่ไม่อยู่ในรายการนี้ไม่มีตัวเลือกส่งช้า)
 };
 
 const SHEET_STUDENTS = 'students';
@@ -37,12 +35,13 @@ const SHEET_ATTENDANCE = 'attendance';
 const SHEET_RESETS = 'resetRequests';
 
 const STUDENT_HEADERS = ['classRoom', 'studentNo', 'studentId', 'fullName', 'nickName', 'salt', 'passwordHash', 'registeredAt', 'status'];
-const ASSIGNMENT_HEADERS = ['assignmentKey', 'chapter', 'section', 'assignmentName', 'type', 'dueDate', 'fullScore', 'sortOrder', 'semester', 'subjectName', 'visible', 'week'];
+const ASSIGNMENT_HEADERS = ['assignmentKey', 'chapter', 'section', 'assignmentName', 'type', 'dueDate', 'fullScore', 'sortOrder', 'semester', 'subjectName', 'visible', 'dueWeek'];
 const SCORE_BASE_HEADERS = ['classRoom', 'studentNo', 'studentId', 'fullName'];
 const RESET_HEADERS = ['requestedAt', 'studentId', 'classRoom', 'fullName', 'status', 'handledAt'];
 
 const MARK_PRESENT = 'มา';
 const MARK_ABSENT = 'ไม่มา';
+const MARK_LEAVE = 'ลา';
 const STATUS_LATE = 'ส่งช้า';
 const REQ_PENDING = 'รอดำเนินการ';
 const REQ_DONE = 'อนุญาตแล้ว';
@@ -243,17 +242,19 @@ function loadAssignments_(includeHidden) {
     .sort((a, b) => Number(a.sortOrder || 9999) - Number(b.sortOrder || 9999));
 }
 
+/** สัปดาห์ที่งานนี้ให้ส่ง (คอลัมน์ dueWeek ในชีต assignments) ว่าง = ยังไม่ระบุ */
 function weekOf_(a) {
-  const w = toNum_(a.week);
-  if (w) return w;
-  const key = str_(a.assignmentKey);
-  const m = /^(lab|ws)(\d+)$/.exec(key);
-  if (m) return Number(m[2]);
-  return CONFIG.QUIZ_WEEKS[key] || null;
+  const w = toNum_(a.dueWeek);
+  return w >= 1 && w <= CONFIG.WEEKS ? w : null;
+}
+
+function latePenaltyOf_(a) {
+  const p = CONFIG.LATE_PENALTIES[str_(a.type)];
+  return p > 0 ? p : 0;
 }
 
 function allowLate_(a) {
-  return CONFIG.LATE_TYPES.indexOf(str_(a.type)) !== -1;
+  return latePenaltyOf_(a) > 0;
 }
 
 function assignmentInfo_(a) {
@@ -266,6 +267,7 @@ function assignmentInfo_(a) {
     fullScore: Number(a.fullScore) || 0,
     week: weekOf_(a),
     allowLate: allowLate_(a),
+    latePenalty: latePenaltyOf_(a),
     visible: !isHidden_(a)
   };
 }
@@ -612,7 +614,7 @@ function teacherGuard_(token, fn) {
 
 function teacherInit(token) {
   return teacherGuard_(token, () => ({
-    config: { school: CONFIG.SCHOOL, subject: CONFIG.SUBJECT, weeks: CONFIG.WEEKS, latePenalty: CONFIG.LATE_PENALTY },
+    config: { school: CONFIG.SCHOOL, subject: CONFIG.SUBJECT, weeks: CONFIG.WEEKS },
     rooms: roomsFromRoster_(loadRoster_()),
     assignments: loadAssignments_(true).map(assignmentInfo_),
     pendingResets: pendingResets_().length
@@ -661,9 +663,10 @@ function checkWeek_(week) {
 }
 
 function summarizeMarks_(list) {
-  const s = { present: 0, absent: 0, blank: 0, total: list.length };
+  const s = { present: 0, leave: 0, absent: 0, blank: 0, total: list.length };
   list.forEach(x => {
     if (x.mark === MARK_PRESENT) s.present++;
+    else if (x.mark === MARK_LEAVE) s.leave++;
     else if (x.mark === MARK_ABSENT) s.absent++;
     else s.blank++;
   });
@@ -782,7 +785,7 @@ function teacherSetAttendance(token, studentId, week, mark) {
   return teacherGuard_(token, () => {
     const w = checkWeek_(week);
     const m = str_(mark);
-    if (m !== '' && m !== MARK_PRESENT && m !== MARK_ABSENT) throw new Error('ค่าเช็คชื่อไม่ถูกต้อง');
+    if (m !== '' && m !== MARK_PRESENT && m !== MARK_LEAVE && m !== MARK_ABSENT) throw new Error('ค่าเช็คชื่อไม่ถูกต้อง');
     return withLock_(() => {
       let sh = getAttendanceSheet_();
       let idx = headerIndex_(sh);
@@ -842,12 +845,10 @@ function teacherGetScores(token, classRoom, key) {
     const info = assignmentInfo_(a);
     const k = info.key;
 
-    const absentIds = {};
+    const markById = {};
     if (info.week) {
       const att = syncAttendanceRows_();
-      readObjects_(att).forEach(r => {
-        if (str_(r['w' + info.week]) === MARK_ABSENT) absentIds[normId_(r.studentId)] = true;
-      });
+      readObjects_(att).forEach(r => { markById[normId_(r.studentId)] = str_(r['w' + info.week]); });
     }
 
     const students = loadRoster_()
@@ -863,9 +864,10 @@ function teacherGetScores(token, classRoom, key) {
           no: Number(r.studentNo),
           name: str_(r.fullName),
           score: score,
-          raw: late ? round2_(score + CONFIG.LATE_PENALTY) : score,
+          raw: late ? round2_(score + info.latePenalty) : score,
           late: late,
-          absent: !!absentIds[normId_(r.studentId)],
+          absent: markById[normId_(r.studentId)] === MARK_ABSENT,
+          leave: markById[normId_(r.studentId)] === MARK_LEAVE,
           status: deriveStatus_(rawScore, info.fullScore, info.type, rawStatus)
         };
       });
@@ -874,7 +876,8 @@ function teacherGetScores(token, classRoom, key) {
       assignment: info,
       room: str_(classRoom),
       students: students,
-      pendingAbsent: students.filter(s => s.absent && s.score === null).length
+      pendingAbsent: students.filter(s => s.absent && s.score === null).length,
+      pendingLeave: students.filter(s => s.leave && s.score === null).length
     };
   });
 }
@@ -882,9 +885,10 @@ function teacherGetScores(token, classRoom, key) {
 /**
  * บันทึกคะแนนหนึ่งช่อง
  * value: ตัวเลข | 'x' (แก้ไข) | '' (ล้างคะแนน)
- * late : true = ส่งช้า หักคะแนน CONFIG.LATE_PENALTY (เฉพาะงานประเภทแลป/แบบฝึกหัดที่ได้คะแนน > 0)
+ * late : true = ส่งช้า หักคะแนนตามประเภทงาน (แลป 0.5, แบบฝึกหัด 1; เฉพาะที่ได้คะแนน > 0)
+ * currentWeek: สัปดาห์ปัจจุบันที่ครูเลือก ถ้างานนี้ยังไม่ระบุสัปดาห์ส่ง จะบันทึกเป็นสัปดาห์นี้ตอนให้คะแนนคนแรก
  */
-function teacherSetScore(token, studentId, key, value, late) {
+function teacherSetScore(token, studentId, key, value, late, currentWeek) {
   return teacherGuard_(token, () => {
     const a = findAssignment_(key);
     const info = assignmentInfo_(a);
@@ -900,7 +904,7 @@ function teacherSetScore(token, studentId, key, value, late) {
       raw = round2_(raw);
     }
     const isLate = !!late && info.allowLate && raw !== null && raw > 0;
-    const finalScore = raw === null ? null : (isLate ? round2_(Math.max(0, raw - CONFIG.LATE_PENALTY)) : raw);
+    const finalScore = raw === null ? null : (isLate ? round2_(Math.max(0, raw - info.latePenalty)) : raw);
     const cellScore = isX ? 'x' : (finalScore === null ? '' : finalScore);
     const cellStatus = isLate ? STATUS_LATE : '';
 
@@ -921,7 +925,15 @@ function teacherSetScore(token, studentId, key, value, late) {
       idx = headerIndex_(sh);
       if (idx.updatedAt) sh.getRange(row, idx.updatedAt).setValue(new Date());
 
+      let weekSet = null;
+      const cw = Number(currentWeek);
+      if (!info.week && cellScore !== '' && Number.isInteger(cw) && cw >= 1 && cw <= CONFIG.WEEKS) {
+        writeDueWeek_(a._row, cw);
+        weekSet = cw;
+      }
+
       return {
+        weekSet: weekSet,
         studentId: normId_(studentId),
         score: cellScore === '' ? null : cellScore,
         raw: isX ? 'x' : raw,
@@ -929,6 +941,22 @@ function teacherSetScore(token, studentId, key, value, late) {
         status: deriveStatus_(cellScore, full, info.type, cellStatus)
       };
     });
+  });
+}
+
+function writeDueWeek_(row, week) {
+  const sh = getSheet_(SHEET_ASSIGNMENTS);
+  const col = getOrCreateCol_(sh, 'dueWeek');
+  sh.getRange(row, col).setValue(week === null ? '' : week);
+}
+
+/** ครูกำหนด/แก้สัปดาห์ที่งานนี้ให้ส่ง (week ว่าง = ล้างค่า) */
+function teacherSetAssignmentWeek(token, key, week) {
+  return teacherGuard_(token, () => {
+    const a = findAssignment_(key);
+    const w = str_(week) === '' ? null : checkWeek_(week);
+    withLock_(() => writeDueWeek_(a._row, w));
+    return { key: str_(a.assignmentKey), week: w };
   });
 }
 
@@ -1153,12 +1181,12 @@ function seedAssignments_() {
   for (let w = 1; w <= 16; w++) {
     if (w <= 15) {
       const ch = chapterName[chapterOfWeek(w)];
-      rows.push(['lab' + w, ch, 'แลปปฏิบัติการ', 'แลปที่ ' + w, 'แลป', '', 1, ++order, sem, subject, 'TRUE', w]);
-      rows.push(['ws' + w, ch, 'แบบฝึกหัดในชีท', 'ชีทที่ ' + w, 'แบบฝึกหัด', '', 2, ++order, sem, subject, 'TRUE', w]);
+      rows.push(['lab' + w, ch, 'แลปปฏิบัติการ', 'แลปที่ ' + w, 'แลป', '', 1, ++order, sem, subject, 'TRUE', '']);
+      rows.push(['ws' + w, ch, 'แบบฝึกหัดในชีท', 'ชีทที่ ' + w, 'แบบฝึกหัด', '', 2, ++order, sem, subject, 'TRUE', '']);
     }
     if (quizWeeks[w]) {
       const q = quizWeeks[w];
-      rows.push(['quiz' + q[0], chapterName[q[1]], 'ควิซสั้น', 'ควิซที่ ' + q[0] + ' (สัปดาห์ ' + w + ')', 'สอบเก็บ', '', 3, ++order, sem, subject, 'TRUE', w]);
+      rows.push(['quiz' + q[0], chapterName[q[1]], 'ควิซสั้น', 'ควิซที่ ' + q[0] + ' (สัปดาห์ ' + w + ')', 'สอบเก็บ', '', 3, ++order, sem, subject, 'TRUE', '']);
     }
     if (w === 7) {
       rows.push(['midterm', 'สอบกลางภาค', '', 'สอบกลางภาค (บทที่ 1)', 'สอบ', '', 20, ++order, sem, subject, 'TRUE', '']);
