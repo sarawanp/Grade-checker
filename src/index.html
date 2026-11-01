@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GradeChecker - ตรวจสอบคะแนนฟิสิกส์ ม.4</title>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #6C63FF; --primary-2: #A78BFA; --bg: #F5F5F7; --card: #fff;
+      --text: #333; --muted: #8A8A99; --line: #F0EFF5; --soft: #F8F7FF;
+    }
+    * { box-sizing: border-box; font-family: 'Prompt', sans-serif; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); }
+    .grad { background: linear-gradient(135deg, #6C63FF 0%, #8A7DFF 50%, #A78BFA 100%); }
+    .card { background: var(--card); border-radius: 20px; box-shadow: 0 4px 24px rgba(108,99,255,.08), 0 1px 4px rgba(0,0,0,.04); }
+    .hidden { display: none !important; }
+
+    /* auth */
+    #authPage { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+      background: linear-gradient(135deg, #F5F5F7 0%, #EDE9FE 100%); }
+    .auth-box { width: 100%; max-width: 440px; padding: 32px 28px; }
+    .brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 6px; }
+    .brand .logo { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 22px; }
+    .brand span { font-size: 22px; font-weight: 700; color: var(--primary); }
+    .sub { text-align: center; color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+    .tabs { display: flex; background: var(--bg); border-radius: 14px; padding: 4px; margin-bottom: 20px; }
+    .tab { flex: 1; border: none; background: transparent; padding: 10px; border-radius: 11px; font-size: 14px; font-weight: 500; color: var(--muted); cursor: pointer; }
+    .tab.active { background: #fff; color: var(--primary); box-shadow: 0 2px 8px rgba(108,99,255,.15); }
+    label { display: block; font-size: 13px; font-weight: 500; color: #555; margin: 12px 0 6px; }
+    input, select { width: 100%; background: var(--bg); border: 1.5px solid transparent; border-radius: 12px; padding: 12px 14px; font-size: 15px; color: var(--text); outline: none; }
+    input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(108,99,255,.2); }
+    .row2 { display: flex; gap: 10px; } .row2 > div { flex: 1; }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .err { color: #EF4444; font-size: 13px; min-height: 18px; margin: 10px 0 4px; }
+    .ok { color: #059669; font-size: 13px; min-height: 18px; margin: 10px 0 4px; }
+    .btn { width: 100%; border: none; color: #fff; font-size: 15px; font-weight: 600; padding: 13px; border-radius: 14px; cursor: pointer; margin-top: 8px; }
+    .btn:disabled { opacity: .6; cursor: default; }
+    .btn-ghost { background: var(--bg); color: #666; border: none; padding: 8px 14px; border-radius: 10px; cursor: pointer; font-size: 13px; }
+    .btn-ghost:hover { background: #FEE2E2; color: #B91C1C; }
+    .showpw { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-top: 8px; }
+    .showpw input { width: auto; }
+    .req { color: #EF4444; }
+    a { color: var(--primary); }
+    .forgot { margin-top: 14px; padding: 14px; background: var(--soft); border-radius: 14px; }
+    .foot { text-align: center; font-size: 11.5px; color: #B0B0C0; margin-top: 18px; }
+
+    /* dashboard */
+    #dash { padding: 20px; }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding: 14px 22px; margin-bottom: 18px; }
+    .top .left { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--primary); font-size: 18px; }
+    .top .logo { width: 36px; height: 36px; border-radius: 10px; color: #fff; display: flex; align-items: center; justify-content: center; }
+    .top .right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+    .grid { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 18px; }
+    .welcome { flex: 1; min-width: 290px; padding: 26px; color: #fff; border-radius: 22px; position: relative; overflow: hidden; }
+    .welcome h2 { margin: 0 0 4px; font-size: 22px; }
+    .welcome p { margin: 0; opacity: .85; font-size: 14px; }
+    .welcome .box { background: rgba(255,255,255,.15); border-radius: 12px; padding: 10px 14px; margin-top: 16px; }
+    .welcome .box small { opacity: .7; font-size: 12px; display: block; }
+    .welcome .box b { font-size: 15px; display: block; margin-bottom: 6px; }
+    .profile { width: 340px; min-width: 280px; padding: 22px; }
+    .profile h3 { margin: 0 0 14px; font-size: 14px; }
+    .kv { background: var(--soft); border-radius: 12px; padding: 12px 14px; margin-top: 12px; }
+    .kv div { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
+    .kv span:first-child { color: var(--muted); }
+    .section { padding: 22px 26px; margin-bottom: 18px; }
+    .section h3 { margin: 0 0 12px; font-size: 15px; }
+    .big { font-size: 42px; font-weight: 700; color: var(--primary); line-height: 1; }
+    .big small { font-size: 18px; color: var(--muted); font-weight: 400; }
+    .bar { height: 10px; background: #E8E6F0; border-radius: 99px; overflow: hidden; margin: 12px 0 8px; }
+    .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6C63FF, #A78BFA); transition: width 1s ease; }
+    .muted { color: var(--muted); font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; min-width: 620px; }
+    th { text-align: center; padding: 10px 12px; font-size: 12.5px; color: var(--muted); border-bottom: 2px solid var(--line); }
+    th:first-child, td:first-child { text-align: left; }
+    td { padding: 11px 12px; font-size: 13.5px; text-align: center; border-bottom: 1px solid var(--line); }
+    tr.chap td { background: var(--soft); color: var(--primary); font-weight: 700; text-align: left; border-bottom: 2px solid #D0C7FF; padding: 13px 12px; }
+    tr.sec td { background: #FAFAF9; color: #5A4DB1; font-weight: 600; font-size: 13px; text-align: left; padding-left: 28px; border-left: 3px solid #D0C7FF; }
+    td.name { font-weight: 500; padding-left: 44px; }
+    td.got { font-weight: 600; color: var(--primary); }
+    .pill { display: inline-block; min-width: 92px; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+    .green { background: #D1FAE5; color: #059669; } .red { background: #FEE2E2; color: #B91C1C; }
+    .yellow { background: #FEF3C7; color: #92400E; } .orange { background: #FFEDD5; color: #C2410C; }
+    .gray { background: #E5E7EB; color: #6B7280; }
+    .scroll { overflow-x: auto; }
+    details summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); opacity: 0; padding: 12px 24px; border-radius: 12px; font-size: 14px; z-index: 99; transition: all .35s ease; }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    .toast.e { background: #FEE2E2; color: #B91C1C; border: 1px solid #FECACA; }
+    .toast.s { background: #D1FAE5; color: #065F46; border: 1px solid #A7F3D0; }
+    @media (max-width: 768px) { #dash { padding: 12px; } .profile { width: 100%; } .big { font-size: 34px; } }
+  </style>
+</head>
+<body>
+<div id="toast" class="toast"></div>
+
+<!-- ============ AUTH ============ -->
+<div id="authPage">
+  <div class="card auth-box">
+    <div class="brand"><div class="logo grad">🎓</div><span>GradeChecker</span></div>
+    <p class="sub" id="subjectLine">ตรวจสอบคะแนนรายวิชาฟิสิกส์ ม.4</p>
+
+    <div class="tabs">
+      <button class="tab active" id="tabLogin" onclick="switchTab('login')">เข้าสู่ระบบ</button>
+      <button class="tab" id="tabReg" onclick="switchTab('reg')">ลงทะเบียนครั้งแรก</button>
+    </div>
+
+    <!-- login -->
+    <form id="loginForm" onsubmit="return doLogin(event)">
+      <label for="lId">เลขประจำตัวนักเรียน</label>
+      <input id="lId" inputmode="numeric" autocomplete="username" placeholder="เช่น 68960000" required>
+      <label for="lPw">รหัสผ่าน</label>
+      <input id="lPw" type="password" autocomplete="current-password" placeholder="รหัสผ่านที่ตั้งไว้" required>
+      <label class="showpw"><input type="checkbox" onchange="togglePw(['lPw'], this.checked)"> แสดงรหัสผ่าน</label>
+      <div class="err" id="lErr"></div>
+      <button class="btn grad" id="lBtn" type="submit">เข้าสู่ระบบ</button>
+      <p class="hint" style="text-align:center;margin-top:12px"><a href="#" onclick="toggleForgot(event)">ลืมรหัสผ่าน?</a></p>
+    </form>
+
+    <!-- forgot -->
+    <div id="forgotBox" class="hidden forgot">
+      <label for="fId">เลขประจำตัวนักเรียน</label>
+      <input id="fId" inputmode="numeric" placeholder="เลขประจำตัวที่ลงทะเบียนไว้" autocomplete="off">
+      <div class="err" id="fMsg"></div>
+      <button class="btn grad" id="fBtn" type="button" onclick="doForgot()">ส่งคำขอให้ครูรีเซ็ตรหัสผ่าน</button>
+      <p class="hint" style="margin-top:8px">เมื่อครูอนุญาตแล้ว ให้ไปที่แท็บ "ลงทะเบียนครั้งแรก" เพื่อเลือกชื่อและตั้งรหัสผ่านใหม่</p>
+    </div>
+
+    <!-- register -->
+    <form id="regForm" class="hidden" onsubmit="return doRegister(event)">
+      <p class="hint" style="margin-top:0">ลงทะเบียนได้ครั้งเดียว เลือกชื่อของตัวเองจากรายการ แล้วตั้งรหัสผ่าน</p>
+      <label for="rRoom">ห้อง <span class="req">*</span></label>
+      <select id="rRoom" required onchange="onRoomChange()"><option value="">กำลังโหลดรายการห้อง...</option></select>
+      <label for="rName">ชื่อ-นามสกุล <span class="req">*</span></label>
+      <select id="rName" required disabled><option value="">เลือกห้องก่อน</option></select>
+      <label for="rId">เลขประจำตัวนักเรียน <span class="req">*</span></label>
+      <input id="rId" inputmode="numeric" required placeholder="เช่น 69980000" autocomplete="off">
+      <label for="rNick">ชื่อเล่น <span class="req">*</span></label>
+      <input id="rNick" required maxlength="30" placeholder="เช่น มิ้ม" autocomplete="nickname">
+      <label for="rPw">ตั้งรหัสผ่าน <span class="req">*</span></label>
+      <input id="rPw" type="password" autocomplete="new-password" required placeholder="อย่างน้อย 6 ตัวอักษร">
+      <label for="rPw2">ยืนยันรหัสผ่าน <span class="req">*</span></label>
+      <input id="rPw2" type="password" autocomplete="new-password" required placeholder="พิมพ์รหัสผ่านอีกครั้ง">
+      <label class="showpw"><input type="checkbox" onchange="togglePw(['rPw','rPw2'], this.checked)"> แสดงรหัสผ่าน</label>
+      <p class="hint">ห้ามใช้เลขประจำตัวเป็นรหัสผ่าน และไม่ควรใช้รหัสเดียวกับบัญชีอื่น</p>
+      <div class="err" id="rErr"></div>
+      <button class="btn grad" id="rBtn" type="submit">ลงทะเบียน</button>
+    </form>
+
+    <p class="foot">© 2026 Sarawan Pomsuk</p>
+  </div>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="dash" class="hidden">
+  <div class="wrap">
+    <div class="card top">
+      <div class="left"><div class="logo grad">🎓</div>GradeChecker</div>
+      <div class="right">
+        <span id="schoolName"></span>
+        <span id="today"></span>
+        <button class="btn-ghost" onclick="doLogout()">ออกจากระบบ</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="welcome grad">
+        <h2 id="hello">ยินดีต้อนรับ 👋</h2>
+        <p>ตรวจสอบผลการเรียน</p>
+        <div class="box">
+          <small>รายวิชา</small><b id="subj">-</b>
+          <small>กลุ่มสาระ</small><b id="group" style="font-weight:500;font-size:14px;margin:0">-</b>
+        </div>
+      </div>
+      <div class="card profile">
+        <h3>ข้อมูลนักเรียน</h3>
+        <div style="font-size:16px;font-weight:600" id="pName">-</div>
+        <div class="muted" id="pRoom">-</div>
+        <div class="kv">
+          <div><span>เลขที่</span><span id="pNo">-</span></div>
+          <div><span>เลขประจำตัว</span><span id="pId">-</span></div>
+          <div><span>ชื่อเล่น</span><span id="pNick">-</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card section">
+      <h3>คะแนนรวม</h3>
+      <div class="big"><span id="tScore">0</span> <small>/ <span id="tFull">0</span></small></div>
+      <div class="bar"><i id="bar"></i></div>
+      <div class="muted" id="barText">-</div>
+    </div>
+
+    <div class="card section">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <h3 style="margin:0">รายละเอียดคะแนน</h3>
+        <span id="semBadge" style="background:#EDE9FE;color:#6C63FF;font-size:12px;font-weight:500;padding:5px 14px;border-radius:20px"></span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:40%">ชื่องาน</th><th>กำหนดส่ง</th><th>เต็ม</th><th>ได้</th><th>สถานะ</th></tr></thead>
+          <tbody id="tbody"><tr><td colspan="5" class="muted" style="padding:36px">กำลังโหลดข้อมูล...</td></tr></tbody>
+        </table>
+      </div>
+      <p class="muted" id="updated" style="margin-top:12px">ข้อมูลอัปเดตล่าสุด: -</p>
+      <p class="hint">สถานะ "แก้ไข" = งานนั้นต้องกลับไปแก้แล้วส่งใหม่ · "ส่งช้า" = หักคะแนนแล้ว 1 คะแนน · ถ้าคะแนนไม่ตรง ให้แจ้งครู</p>
+    </div>
+
+    <div class="card section">
+      <details>
+        <summary>เปลี่ยนรหัสผ่าน</summary>
+        <div style="max-width:380px">
+          <label for="cOld">รหัสผ่านเดิม</label><input id="cOld" type="password" autocomplete="current-password">
+          <label for="cNew">รหัสผ่านใหม่</label><input id="cNew" type="password" autocomplete="new-password">
+          <div class="err" id="cMsg"></div>
+          <button class="btn grad" onclick="doChangePw()">บันทึกรหัสผ่านใหม่</button>
+        </div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<script>
+  var token = null, cfg = {};
+  var $ = function (id) { return document.getElementById(id); };
+
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  }
+  function toast(msg, type) {
+    var t = $('toast'); t.textContent = msg; t.className = 'toast ' + (type === 'e' ? 'e' : 's') + ' show';
+    setTimeout(function () { t.classList.remove('show'); }, 3200);
+  }
+  function call(name, args, ok, fail) {
+    var r = google.script.run.withSuccessHandler(ok).withFailureHandler(function (e) {
+      if (fail) fail(e); else toast('เชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง', 'e');
+      console.error(e);
+    });
+    r[name].apply(r, args);
+  }
+  function saveToken(t) { try { sessionStorage.setItem('gc_token', t || ''); } catch (e) {} }
+  function loadToken() { try { return sessionStorage.getItem('gc_token') || null; } catch (e) { return null; } }
+
+  function switchTab(which) {
+    var login = which === 'login';
+    $('tabLogin').classList.toggle('active', login);
+    $('tabReg').classList.toggle('active', !login);
+    $('loginForm').classList.toggle('hidden', !login);
+    $('regForm').classList.toggle('hidden', login);
+  }
+  function togglePw(ids, show) { ids.forEach(function (i) { $(i).type = show ? 'text' : 'password'; }); }
+
+  /* ---- init ---- */
+  call('getPublicConfig', [], function (c) {
+    if (!c || !c.success) { toast((c && c.message) || 'โหลดการตั้งค่าไม่สำเร็จ', 'e'); return; }
+    cfg = c;
+    $('subjectLine').textContent = c.subject;
+    var sel = $('rRoom');
+    sel.innerHTML = '<option value="">เลือกห้อง</option>' + (c.rooms || []).map(function (r) {
+      return '<option value="' + esc(r) + '">' + esc(r) + '</option>';
+    }).join('');
+    var saved = loadToken();
+    if (saved) { token = saved; loadScores(true); }
+  });
+
+  /* ---- register ---- */
+  function onRoomChange() {
+    var room = $('rRoom').value, sel = $('rName');
+    $('rErr').textContent = '';
+    if (!room) { sel.disabled = true; sel.innerHTML = '<option value="">เลือกห้องก่อน</option>'; return; }
+    sel.disabled = true; sel.innerHTML = '<option value="">กำลังโหลดรายชื่อ...</option>';
+    call('getRegisterNames', [room], function (res) {
+      if ($('rRoom').value !== room) return;
+      if (!res || !res.success) { sel.innerHTML = '<option value="">โหลดรายชื่อไม่สำเร็จ</option>'; return; }
+      if (!res.names.length) {
+        sel.innerHTML = '<option value="">ไม่มีชื่อที่ยังไม่ได้ลงทะเบียนในห้องนี้</option>';
+        return;
+      }
+      sel.innerHTML = '<option value="">เลือกชื่อของตัวเอง (' + res.names.length + ' รายชื่อ)</option>' + res.names.map(function (n) {
+        return '<option value="' + esc(n.no) + '">เลขที่ ' + esc(n.no) + '  ' + esc(n.name) + '</option>';
+      }).join('');
+      sel.disabled = false;
+    }, function () { sel.innerHTML = '<option value="">โหลดรายชื่อไม่สำเร็จ</option>'; });
+  }
+
+  function doRegister(e) {
+    e.preventDefault();
+    $('rErr').className = 'err'; $('rErr').textContent = '';
+    var btn = $('rBtn'); btn.disabled = true; btn.textContent = 'กำลังลงทะเบียน...';
+    var form = {
+      classRoom: $('rRoom').value, studentNo: $('rName').value, studentId: $('rId').value,
+      nickName: $('rNick').value, password: $('rPw').value, confirm: $('rPw2').value
+    };
+    call('registerStudent', [form], function (res) {
+      btn.disabled = false; btn.textContent = 'ลงทะเบียน';
+      if (res && res.success) {
+        $('lId').value = form.studentId; $('lPw').value = '';
+        ['rId', 'rNick', 'rPw', 'rPw2'].forEach(function (i) { $(i).value = ''; });
+        $('rRoom').value = ''; onRoomChange();
+        switchTab('login');
+        $('lErr').className = 'ok'; $('lErr').textContent = 'ลงทะเบียนสำเร็จ กรุณาเข้าสู่ระบบด้วยรหัสผ่านที่ตั้งไว้';
+        $('lPw').focus();
+      } else {
+        $('rErr').textContent = (res && res.message) || 'เกิดข้อผิดพลาด';
+      }
+    }, function () { btn.disabled = false; btn.textContent = 'ลงทะเบียน'; $('rErr').textContent = 'เชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง'; });
+    return false;
+  }
+
+  /* ---- forgot password ---- */
+  function toggleForgot(e) {
+    e.preventDefault();
+    $('forgotBox').classList.toggle('hidden');
+    $('fMsg').textContent = '';
+  }
+  function doForgot() {
+    var m = $('fMsg'); m.className = 'err'; m.textContent = '';
+    var btn = $('fBtn'); btn.disabled = true;
+    call('requestPasswordReset', [$('fId').value], function (res) {
+      btn.disabled = false;
+      if (res && res.success) { m.className = 'ok'; m.textContent = res.message; $('fId').value = ''; }
+      else { m.textContent = (res && res.message) || 'เกิดข้อผิดพลาด'; }
+    }, function () { btn.disabled = false; m.textContent = 'เชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง'; });
+  }
+
+  /* ---- login ---- */
+  function doLogin(e) {
+    e.preventDefault();
+    $('lErr').className = 'err'; $('lErr').textContent = '';
+    var btn = $('lBtn'); btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+    call('loginStudent', [$('lId').value, $('lPw').value], function (res) {
+      btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ';
+      if (res && res.success) {
+        token = res.token; saveToken(token); $('lPw').value = '';
+        loadScores(false);
+      } else {
+        $('lErr').textContent = (res && res.message) || 'เกิดข้อผิดพลาด';
+      }
+    }, function () { btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ'; $('lErr').textContent = 'เชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง'; });
+    return false;
+  }
+
+  function doLogout() {
+    call('logoutStudent', [token], function () {}, function () {});
+    token = null; saveToken('');
+    $('dash').classList.add('hidden'); $('authPage').classList.remove('hidden');
+    $('tbody').innerHTML = '<tr><td colspan="5" class="muted" style="padding:36px">กำลังโหลดข้อมูล...</td></tr>';
+    $('lErr').textContent = '';
+  }
+
+  /* ---- scores ---- */
+  function loadScores(silent) {
+    call('getMyScores', [token], function (res) {
+      if (!res || !res.success) {
+        if (res && res.expired) { token = null; saveToken(''); if (!silent) toast(res.message, 'e'); return; }
+        toast((res && res.message) || 'โหลดคะแนนไม่สำเร็จ', 'e'); return;
+      }
+      showDash(res);
+    }, function () { if (!silent) toast('โหลดคะแนนไม่สำเร็จ', 'e'); });
+  }
+
+  function badge(it) {
+    var s = it.status, cls = 'gray';
+    if (s === 'แก้ไข') cls = 'orange';
+    else if (s === 'ส่งแล้ว' || s === 'สอบแล้ว') cls = 'green';
+    else if (s === 'ยังไม่ได้ส่ง') cls = 'red';
+    else if (s === 'ได้บางส่วน' || s === 'ส่งช้า') cls = 'yellow';
+    return '<span class="pill ' + cls + '">' + esc(s) + '</span>';
+  }
+
+  function showDash(res) {
+    $('authPage').classList.add('hidden'); $('dash').classList.remove('hidden');
+    var st = res.student;
+    var months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    var d = new Date(); $('today').textContent = d.getDate() + ' ' + months[d.getMonth()] + ' ' + (d.getFullYear() + 543);
+    $('schoolName').textContent = cfg.school || '';
+    $('subj').textContent = cfg.subject || ''; $('group').textContent = cfg.subjectGroup || '';
+    $('hello').textContent = 'สวัสดี ' + (st.nickName || st.fullName.split(' ')[0] || '') + ' 👋';
+    $('pName').textContent = st.fullName; $('pRoom').textContent = st.classRoom;
+    $('pNo').textContent = st.studentNo; $('pId').textContent = st.studentId; $('pNick').textContent = st.nickName || '-';
+    $('semBadge').textContent = res.semester ? 'ภาคเรียนที่ ' + res.semester : '';
+
+    var sm = res.summary;
+    $('tScore').textContent = sm.totalScore; $('tFull').textContent = sm.totalFull;
+    var pct = sm.totalFull > 0 ? Math.round(sm.totalScore / sm.totalFull * 100) : 0;
+    setTimeout(function () { $('bar').style.width = pct + '%'; }, 50);
+    $('barText').textContent = 'ได้ ' + pct + '% ของคะแนนเต็มทั้งรายวิชา' +
+      (sm.recordedFull > 0 ? ' · จากงานที่ตรวจแล้ว (เต็ม ' + sm.recordedFull + ') ได้ ' + sm.percentOfRecorded + '%' : '');
+
+    var groups = [];
+    res.items.forEach(function (it) {
+      var g = groups.length ? groups[groups.length - 1] : null;
+      if (!g || g.chapter !== it.chapter) { g = { chapter: it.chapter, secs: [] }; groups.push(g); }
+      var s = g.secs.length ? g.secs[g.secs.length - 1] : null;
+      if (!s || s.name !== it.section) { s = { name: it.section, items: [] }; g.secs.push(s); }
+      s.items.push(it);
+    });
+
+    var html = '';
+    groups.forEach(function (g) {
+      html += '<tr class="chap"><td colspan="5">' + esc(g.chapter) + '</td></tr>';
+      g.secs.forEach(function (s) {
+        if (s.name) html += '<tr class="sec"><td colspan="5">' + esc(s.name) + '</td></tr>';
+        s.items.forEach(function (it) {
+          html += '<tr><td class="name">' + esc(it.name) + '</td>' +
+            '<td class="muted">' + esc(it.dueDate || '-') + '</td>' +
+            '<td class="muted">' + it.fullScore + '</td>' +
+            '<td class="got">' + (it.score === null ? '-' : esc(it.score)) + '</td>' +
+            '<td>' + badge(it) + '</td></tr>';
+        });
+      });
+    });
+    $('tbody').innerHTML = html || '<tr><td colspan="5" class="muted" style="padding:36px">ยังไม่มีรายการคะแนน</td></tr>';
+    $('updated').textContent = 'ข้อมูลอัปเดตล่าสุด: ' + (res.updatedAt || '-') +
+      (res.hasScoreRow ? '' : ' (ยังไม่พบแถวคะแนนของคุณในชีต แจ้งครู)');
+  }
+
+  /* ---- change password ---- */
+  function doChangePw() {
+    var m = $('cMsg'); m.className = 'err'; m.textContent = '';
+    call('changePassword', [token, $('cOld').value, $('cNew').value], function (res) {
+      if (res && res.success) {
+        m.className = 'ok'; m.textContent = res.message; $('cOld').value = ''; $('cNew').value = '';
+      } else if (res && res.expired) {
+        doLogout(); toast(res.message, 'e');
+      } else { m.textContent = (res && res.message) || 'เกิดข้อผิดพลาด'; }
+    });
+  }
+</script>
+</body>
+</html>

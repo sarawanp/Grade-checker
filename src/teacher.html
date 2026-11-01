@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GradeChecker - แดชบอร์ดครู</title>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #6C63FF; --primary-d: #5A4DB1; --bg: #F5F5F7; --card: #fff; --text: #333; --muted: #8A8A99;
+      --line: #F0EFF5; --soft: #F8F7FF; --green: #059669; --green-bg: #D1FAE5; --red: #B91C1C; --red-bg: #FEE2E2;
+      --amber: #92400E; --amber-bg: #FEF3C7; --orange: #C2410C; --orange-bg: #FFEDD5; --gray: #6B7280; --gray-bg: #E5E7EB;
+    }
+    * { box-sizing: border-box; font-family: 'Prompt', sans-serif; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); }
+    .grad { background: linear-gradient(135deg, #6C63FF 0%, #8A7DFF 50%, #A78BFA 100%); }
+    .card { background: var(--card); border-radius: 18px; box-shadow: 0 4px 24px rgba(108,99,255,.08), 0 1px 4px rgba(0,0,0,.04); }
+    .hidden { display: none !important; }
+    button { cursor: pointer; font-size: 14px; }
+    button:disabled { opacity: .45; cursor: default; }
+    input, select { background: var(--bg); border: 1.5px solid transparent; border-radius: 12px; padding: 10px 12px; font-size: 14px; color: var(--text); outline: none; }
+    input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(108,99,255,.2); }
+    label { font-size: 13px; color: #555; font-weight: 500; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .err { color: #EF4444; font-size: 13px; min-height: 18px; margin: 8px 0; }
+    .btn { border: none; color: #fff; font-weight: 600; padding: 11px 18px; border-radius: 12px; }
+    .btn-soft { border: none; background: var(--soft); color: var(--primary-d); font-weight: 500; padding: 9px 14px; border-radius: 10px; }
+    .btn-soft:hover { background: #ECE9FF; }
+    .btn-ghost { background: var(--bg); color: #666; border: none; padding: 8px 14px; border-radius: 10px; }
+    .btn-ghost:hover { background: var(--red-bg); color: var(--red); }
+
+    /* login */
+    #loginPage { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: linear-gradient(135deg, #F5F5F7 0%, #EDE9FE 100%); }
+    .login-box { width: 100%; max-width: 380px; padding: 32px 28px; }
+    .login-box h1 { font-size: 20px; margin: 0 0 4px; color: var(--primary); text-align: center; }
+    .login-box input { width: 100%; margin: 6px 0 4px; }
+
+    /* app shell */
+    #app { padding: 16px; }
+    .wrap { max-width: 1000px; margin: 0 auto; }
+    .top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 20px; margin-bottom: 14px; }
+    .top .t { font-weight: 700; color: var(--primary); font-size: 17px; }
+    .top .s { font-size: 12.5px; color: var(--muted); }
+    .banner { background: var(--amber-bg); color: var(--amber); border-radius: 14px; padding: 10px 16px; margin-bottom: 14px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .banner button { background: #fff; border: none; border-radius: 10px; padding: 6px 12px; color: var(--amber); font-weight: 600; }
+    .tabs { display: flex; gap: 6px; background: #fff; border-radius: 14px; padding: 5px; margin-bottom: 14px; box-shadow: 0 2px 10px rgba(108,99,255,.06); }
+    .tab { flex: 1; border: none; background: transparent; padding: 10px 6px; border-radius: 10px; font-weight: 500; color: var(--muted); position: relative; }
+    .tab.on { background: var(--primary); color: #fff; }
+    .badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: #EF4444; color: #fff; font-size: 11px; line-height: 18px; }
+    .panel { padding: 18px 20px; }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
+    .controls .f { display: flex; flex-direction: column; gap: 4px; }
+    .controls select { min-width: 120px; }
+    #asgSel { min-width: 260px; max-width: 100%; }
+
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .chip { padding: 4px 12px; border-radius: 99px; font-size: 12.5px; font-weight: 500; }
+    .c-green { background: var(--green-bg); color: var(--green); } .c-red { background: var(--red-bg); color: var(--red); }
+    .c-gray { background: var(--gray-bg); color: var(--gray); } .c-amber { background: var(--amber-bg); color: var(--amber); }
+    .c-orange { background: var(--orange-bg); color: var(--orange); } .c-purple { background: #EDE9FE; color: var(--primary-d); }
+
+    .row { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+    .row.absent { background: #FFF7F7; }
+    .no { width: 28px; text-align: right; color: var(--muted); font-size: 13px; flex: none; }
+    .nm { flex: 1; min-width: 150px; font-size: 14px; }
+    .nm small { display: block; color: var(--muted); font-size: 11.5px; }
+    .nm .nick { font-size: 16px; font-weight: 600; color: var(--text, #2b2b3a); }
+    .av { width: 46px; height: 46px; border-radius: 50%; background: #ECEBFA center/cover no-repeat; flex: none; color: #8d89c9; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; }
+    .seg { display: flex; gap: 6px; flex: none; }
+    .seg button { border: 1.5px solid #E3E1EE; background: #fff; border-radius: 10px; padding: 7px 14px; font-weight: 500; color: #666; min-width: 56px; }
+    .seg button.p.on { background: var(--green-bg); border-color: #6EE7B7; color: var(--green); }
+    .seg button.a.on { background: var(--red-bg); border-color: #FCA5A5; color: var(--red); }
+
+    .sc { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex: 2; min-width: 260px; }
+    .sb { border: 1.5px solid #E3E1EE; background: #fff; border-radius: 10px; padding: 6px 0; min-width: 40px; font-weight: 600; color: #555; }
+    .sb:hover { border-color: var(--primary); }
+    .sb.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .sb.x.on { background: var(--orange); border-color: var(--orange); }
+    .sb.x { color: var(--orange); }
+    .sc input[type=number] { width: 66px; padding: 6px 8px; }
+    .late { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--amber); white-space: nowrap; }
+    .late input { width: auto; }
+    .pill { display: inline-block; min-width: 88px; text-align: center; padding: 3px 10px; border-radius: 8px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+    .p-green { background: var(--green-bg); color: var(--green); } .p-red { background: var(--red-bg); color: var(--red); }
+    .p-yellow { background: var(--amber-bg); color: var(--amber); } .p-orange { background: var(--orange-bg); color: var(--orange); }
+    .p-gray { background: var(--gray-bg); color: var(--gray); }
+    .flag { display: block; margin-top: 3px; font-size: 12px; color: var(--red); background: var(--red-bg); border-radius: 8px; padding: 2px 8px; width: fit-content; }
+    .flag.soft { color: var(--gray); background: var(--gray-bg); }
+    .save { width: 18px; flex: none; font-size: 13px; color: var(--green); text-align: center; }
+    .save.err { color: #EF4444; }
+
+    .req-card { background: var(--amber-bg); border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
+    .req-card h4 { margin: 0 0 8px; font-size: 14px; color: var(--amber); }
+    .req { display: flex; align-items: center; gap: 10px; padding: 6px 0; flex-wrap: wrap; }
+    .req .who { flex: 1; min-width: 180px; font-size: 14px; }
+    .req .who small { display: block; color: var(--amber); opacity: .8; font-size: 12px; }
+    .ok-btn { border: none; background: var(--green); color: #fff; border-radius: 10px; padding: 7px 12px; font-weight: 500; }
+    .no-btn { border: none; background: #fff; color: var(--gray); border-radius: 10px; padding: 7px 12px; }
+    .reset-btn { border: 1.5px solid #E3E1EE; background: #fff; border-radius: 10px; padding: 6px 12px; color: #666; }
+    .reset-btn.sure { background: var(--red); border-color: var(--red); color: #fff; }
+    .empty { text-align: center; color: var(--muted); padding: 34px 10px; font-size: 14px; }
+    .note { font-size: 12.5px; color: var(--muted); margin: 6px 0 10px; }
+
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); opacity: 0; padding: 12px 24px; border-radius: 12px; font-size: 14px; z-index: 99; transition: all .35s ease; }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    .toast.e { background: var(--red-bg); color: var(--red); border: 1px solid #FECACA; }
+    .toast.s { background: var(--green-bg); color: #065F46; border: 1px solid #A7F3D0; }
+    @media (max-width: 640px) {
+      #app { padding: 10px; } .panel { padding: 14px 12px; } .tab { font-size: 13px; }
+      .sc { min-width: 100%; } #asgSel { min-width: 100%; } .controls .f { flex: 1; }
+    }
+  </style>
+</head>
+<body>
+<div id="toast" class="toast"></div>
+
+<!-- ============ LOGIN ============ -->
+<div id="loginPage">
+  <form class="card login-box" onsubmit="return doLogin(event)">
+    <h1>GradeChecker · ครู</h1>
+    <p class="muted" style="text-align:center;margin:0 0 16px" id="loginSub">วิทยาศาสตร์กายภาพ 2 (ฟิสิกส์) ม.4</p>
+    <label for="tPw">รหัสผ่านครู</label>
+    <input id="tPw" type="password" autocomplete="current-password" required>
+    <div class="err" id="lErr"></div>
+    <button class="btn grad" id="lBtn" type="submit" style="width:100%">เข้าสู่ระบบ</button>
+  </form>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hidden">
+  <div class="wrap">
+    <div class="card top">
+      <div><div class="t">GradeChecker · แดชบอร์ดครู</div><div class="s" id="sub"></div></div>
+      <button class="btn-ghost" onclick="doLogout()">ออกจากระบบ</button>
+    </div>
+
+    <div id="banner" class="banner hidden">
+      <span id="bannerText"></span>
+      <button onclick="showTab('stu')">ดูคำขอ</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab on" data-tab="att" onclick="showTab('att')">เช็คชื่อ</button>
+      <button class="tab" data-tab="score" onclick="showTab('score')">ลงคะแนน</button>
+      <button class="tab" data-tab="stu" onclick="showTab('stu')">นักเรียน<span id="tabBadge" class="badge hidden"></span></button>
+    </div>
+
+    <!-- เช็คชื่อ -->
+    <section id="tab-att" class="card panel">
+      <div class="controls">
+        <div class="f"><label for="attRoom">ห้อง</label><select id="attRoom" onchange="loadAtt()"></select></div>
+        <div class="f"><label for="attWeek">สัปดาห์</label><select id="attWeek" onchange="loadAtt()"></select></div>
+        <button class="btn-soft" onclick="attAll()">เช็คว่ามาทั้งห้อง (เฉพาะที่ยังไม่เช็ค)</button>
+      </div>
+      <div class="chips" id="attChips"></div>
+      <div id="attList"><div class="empty">กำลังโหลด...</div></div>
+    </section>
+
+    <!-- ลงคะแนน -->
+    <section id="tab-score" class="card panel hidden">
+      <div class="controls">
+        <div class="f"><label for="scRoom">ห้อง</label><select id="scRoom" onchange="loadScores()"></select></div>
+        <div class="f" style="flex:1"><label for="asgSel">ช่องคะแนน</label><select id="asgSel" onchange="loadScores()"></select></div>
+      </div>
+      <div class="chips" id="scChips"></div>
+      <div class="note" id="scNote"></div>
+      <div id="scList"><div class="empty">กำลังโหลด...</div></div>
+    </section>
+
+    <!-- นักเรียน -->
+    <section id="tab-stu" class="card panel hidden">
+      <div id="reqBox"></div>
+      <div class="controls">
+        <div class="f"><label for="stuRoom">ห้อง</label><select id="stuRoom" onchange="loadStudents()"></select></div>
+      </div>
+      <div class="chips" id="stuChips"></div>
+      <div id="stuList"><div class="empty">กำลังโหลด...</div></div>
+    </section>
+  </div>
+</div>
+
+<script>
+  var tok = null, S = null;
+  var att = null, sc = null, stu = null, photos = {}, photoRoom = '';
+  var $ = function (id) { return document.getElementById(id); };
+
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  }
+  function toast(msg, type) {
+    var t = $('toast'); t.textContent = msg; t.className = 'toast ' + (type === 'e' ? 'e' : 's') + ' show';
+    clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove('show'); }, 3000);
+  }
+  function store(k, v) { try { if (v == null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+
+  /* ---- ส่งคำขอไปเซิร์ฟเวอร์ ทีละรายการตามลำดับ (กันบันทึกชนกัน) ---- */
+  var chain = Promise.resolve();
+  function rpc(name, args) {
+    var p = chain.then(function () {
+      return new Promise(function (resolve, reject) {
+        var r = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+        r[name].apply(r, args);
+      });
+    });
+    chain = p.catch(function () {});
+    return p.then(function (res) {
+      if (res && res.expired) { expire(res.message); throw new Error('expired'); }
+      return res;
+    });
+  }
+  function expire(msg) {
+    tok = null; store('gc_t', null);
+    $('app').classList.add('hidden'); $('loginPage').classList.remove('hidden');
+    $('lErr').textContent = msg || 'หมดเวลาการใช้งาน กรุณาเข้าสู่ระบบใหม่';
+  }
+
+  /* ---- login ---- */
+  function doLogin(e) {
+    e.preventDefault();
+    $('lErr').textContent = '';
+    var btn = $('lBtn'); btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+    rpc('teacherLogin', [$('tPw').value]).then(function (res) {
+      btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ';
+      if (res && res.success) { tok = res.token; store('gc_t', tok); $('tPw').value = ''; init(); }
+      else $('lErr').textContent = (res && res.message) || 'เกิดข้อผิดพลาด';
+    }).catch(function () { btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ'; $('lErr').textContent = 'เชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง'; });
+    return false;
+  }
+  function doLogout() {
+    rpc('teacherLogout', [tok]).catch(function () {});
+    expire(''); $('lErr').textContent = '';
+  }
+
+  /* ---- init ---- */
+  function init() {
+    rpc('teacherInit', [tok]).then(function (res) {
+      if (!res.success) { toast(res.message, 'e'); return; }
+      S = res;
+      $('loginPage').classList.add('hidden'); $('app').classList.remove('hidden');
+      $('sub').textContent = res.config.school + ' · ' + res.config.subject;
+
+      var roomOpts = res.rooms.map(function (r) { return '<option value="' + esc(r) + '">' + esc(r) + '</option>'; }).join('');
+      ['attRoom', 'scRoom', 'stuRoom'].forEach(function (id) { $(id).innerHTML = roomOpts; });
+      var savedRoom = load('gc_room');
+      if (savedRoom && res.rooms.indexOf(savedRoom) >= 0) ['attRoom', 'scRoom', 'stuRoom'].forEach(function (id) { $(id).value = savedRoom; });
+
+      var w = '';
+      for (var i = 1; i <= res.config.weeks; i++) w += '<option value="' + i + '">สัปดาห์ที่ ' + i + '</option>';
+      $('attWeek').innerHTML = w;
+      $('attWeek').value = load('gc_week') || '1';
+
+      var groups = [], cur = null;
+      res.assignments.forEach(function (a) {
+        if (!cur || cur.chapter !== a.chapter) { cur = { chapter: a.chapter, items: [] }; groups.push(cur); }
+        cur.items.push(a);
+      });
+      $('asgSel').innerHTML = groups.map(function (g) {
+        return '<optgroup label="' + esc(g.chapter) + '">' + g.items.map(function (a) {
+          return '<option value="' + esc(a.key) + '">' + esc(a.name) + ' (เต็ม ' + a.fullScore + ')' + (a.visible ? '' : ' [ซ่อน]') + '</option>';
+        }).join('') + '</optgroup>';
+      }).join('');
+      var savedAsg = load('gc_asg');
+      if (savedAsg) $('asgSel').value = savedAsg;
+
+      setPending(res.pendingResets);
+      showTab(load('gc_tab') || 'att');
+    }).catch(function (e) { if (e.message !== 'expired') toast('เชื่อมต่อไม่สำเร็จ', 'e'); });
+  }
+
+  function showTab(t) {
+    store('gc_tab', t);
+    ['att', 'score', 'stu'].forEach(function (k) {
+      $('tab-' + k).classList.toggle('hidden', k !== t);
+    });
+    document.querySelectorAll('.tab').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-tab') === t); });
+    if (t === 'att') loadAtt(); else if (t === 'score') loadScores(); else loadStudents();
+  }
+
+  function setPending(n) {
+    $('tabBadge').textContent = n; $('tabBadge').classList.toggle('hidden', !n);
+    $('banner').classList.toggle('hidden', !n);
+    $('bannerText').textContent = 'มีนักเรียนขอรีเซ็ตรหัสผ่าน ' + n + ' รายการ';
+  }
+
+  /* =================== เช็คชื่อ =================== */
+  function loadAtt() {
+    var room = $('attRoom').value, week = $('attWeek').value;
+    store('gc_room', room); store('gc_week', week);
+    $('attList').innerHTML = '<div class="empty">กำลังโหลด...</div>';
+    rpc('teacherGetAttendance', [tok, room, Number(week)]).then(function (res) {
+      if (room !== $('attRoom').value || week !== $('attWeek').value) return;
+      if (!res.success) { $('attList').innerHTML = '<div class="empty">' + esc(res.message) + '</div>'; return; }
+      att = res; renderAtt(); if (res.photosReady) loadPhotos(room);
+    }).catch(function (e) { if (e.message !== 'expired') $('attList').innerHTML = '<div class="empty">เชื่อมต่อไม่สำเร็จ</div>'; });
+  }
+
+  function attChips() {
+    var c = { p: 0, a: 0, b: 0 };
+    att.students.forEach(function (s) { if (s.mark === 'มา') c.p++; else if (s.mark === 'ไม่มา') c.a++; else c.b++; });
+    $('attChips').innerHTML =
+      '<span class="chip c-green">มา ' + c.p + '</span><span class="chip c-red">ไม่มา ' + c.a + '</span>' +
+      '<span class="chip c-gray">ยังไม่เช็ค ' + c.b + '</span><span class="chip c-purple">ทั้งหมด ' + att.students.length + ' คน</span>';
+  }
+
+  function renderAtt() {
+    attChips();
+    if (!att.students.length) { $('attList').innerHTML = '<div class="empty">ไม่พบนักเรียนในห้องนี้</div>'; return; }
+    $('attList').innerHTML = att.students.map(function (s, i) {
+      return '<div class="row' + (s.mark === 'ไม่มา' ? ' absent' : '') + '" id="ar' + i + '">' +
+        '<span class="no">' + s.no + '</span>' + avatar(s) +
+        '<span class="nm">' + (s.nick ? '<span class="nick">' + esc(s.nick) + '</span><small>' + esc(s.name) + '</small>' : esc(s.name) + '<small>ยังไม่ลงทะเบียน</small>') + '</span>' +
+        '<span class="seg"><button class="p' + (s.mark === 'มา' ? ' on' : '') + '" onclick="mark(' + i + ',\'มา\')">มา</button>' +
+        '<button class="a' + (s.mark === 'ไม่มา' ? ' on' : '') + '" onclick="mark(' + i + ',\'ไม่มา\')">ไม่มา</button></span>' +
+        '<span class="save" id="as' + i + '"></span></div>';
+    }).join('');
+  }
+
+  function mark(i, m) {
+    var s = att.students[i], prev = s.mark, next = prev === m ? '' : m;
+    s.mark = next; renderAttRow(i); attChips();
+    $('as' + i).textContent = '…';
+    var week = att.week;
+    rpc('teacherSetAttendance', [tok, s.studentId, week, next]).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      if (att.students[i] !== s) return;
+      var el = $('as' + i); if (el) { el.className = 'save'; el.textContent = '✓'; }
+    }).catch(function (e) {
+      if (e.message === 'expired') return;
+      s.mark = prev;
+      if (att.students[i] === s) { renderAttRow(i); attChips(); }
+      toast('บันทึกไม่สำเร็จ: ' + e.message, 'e');
+    });
+  }
+  function avatar(s) {
+    var u = photos[s.studentId];
+    if (u) return '<span class="av" data-av="' + s.studentId + '" style="background-image:url(' + u + ')"></span>';
+    return '<span class="av" data-av="' + s.studentId + '">' + esc((s.nick || s.name.replace(/^(นาย|นางสาว|นาง|ด\.ช\.|ด\.ญ\.)/, '')).charAt(0)) + '</span>';
+  }
+  function loadPhotos(room) {
+    rpc('teacherGetPhotos', [tok, room]).then(function (res) {
+      if (!res || !res.success || !res.photos) return;
+      Object.keys(res.photos).forEach(function (id) { photos[id] = res.photos[id]; });
+      if (res.error) toast(res.error, 'e');
+      document.querySelectorAll('#attList .av').forEach(function (el) {
+        var u = photos[el.getAttribute('data-av')];
+        if (u) { el.style.backgroundImage = 'url(' + u + ')'; el.textContent = ''; }
+      });
+    }).catch(function () {});
+  }
+  function renderAttRow(i) {
+    var s = att.students[i], row = $('ar' + i);
+    row.classList.toggle('absent', s.mark === 'ไม่มา');
+    row.querySelector('.p').classList.toggle('on', s.mark === 'มา');
+    row.querySelector('.a').classList.toggle('on', s.mark === 'ไม่มา');
+  }
+  function attAll() {
+    if (!att || !att.students.length) return;
+    var room = att.room, week = att.week;
+    rpc('teacherSetAttendanceBulk', [tok, room, week, 'มา', true]).then(function (res) {
+      if (!res.success) { toast(res.message, 'e'); return; }
+      toast('เช็คว่ามาแล้ว ' + res.changed + ' คน', 's'); loadAtt();
+    }).catch(function (e) { if (e.message !== 'expired') toast('บันทึกไม่สำเร็จ', 'e'); });
+  }
+
+  /* =================== ลงคะแนน =================== */
+  function loadScores() {
+    var room = $('scRoom').value, key = $('asgSel').value;
+    store('gc_room', room); store('gc_asg', key);
+    $('scList').innerHTML = '<div class="empty">กำลังโหลด...</div>';
+    rpc('teacherGetScores', [tok, room, key]).then(function (res) {
+      if (room !== $('scRoom').value || key !== $('asgSel').value) return;
+      if (!res.success) { $('scList').innerHTML = '<div class="empty">' + esc(res.message) + '</div>'; return; }
+      sc = res; renderScores();
+    }).catch(function (e) { if (e.message !== 'expired') $('scList').innerHTML = '<div class="empty">เชื่อมต่อไม่สำเร็จ</div>'; });
+  }
+
+  function presets(a) {
+    var v = [], full = a.fullScore;
+    if (full <= 5) {
+      if (full % 1 !== 0) v.push(full);
+      for (var k = Math.floor(full); k >= 1; k--) v.push(k);
+    } else v.push(full);
+    return v;
+  }
+
+  function pillClass(st) {
+    if (st === 'แก้ไข') return 'p-orange';
+    if (st === 'ส่งแล้ว' || st === 'สอบแล้ว') return 'p-green';
+    if (st === 'ยังไม่ได้ส่ง') return 'p-red';
+    if (st === 'ได้บางส่วน' || st === 'ส่งช้า') return 'p-yellow';
+    return 'p-gray';
+  }
+
+  function scChips() {
+    var a = sc.assignment, filled = 0, x = 0, late = 0;
+    sc.students.forEach(function (s) { if (s.score !== null) filled++; if (s.score === 'x') x++; if (s.late) late++; });
+    var h = '<span class="chip c-purple">' + esc(a.name) + ' · เต็ม ' + a.fullScore + '</span>' +
+      '<span class="chip c-gray">มีคะแนนแล้ว ' + filled + '/' + sc.students.length + '</span>';
+    if (x) h += '<span class="chip c-orange">แก้ไข ' + x + '</span>';
+    if (late) h += '<span class="chip c-amber">ส่งช้า ' + late + '</span>';
+    var pend = sc.students.filter(function (s) { return s.absent && s.score === null; }).length;
+    if (pend) h += '<span class="chip c-red">ขาดเรียนและยังไม่มีคะแนน ' + pend + ' คน</span>';
+    $('scChips').innerHTML = h;
+    var note = [];
+    if (a.week) note.push('ช่องนี้ผูกกับสัปดาห์ที่ ' + a.week + ' ระบบจะแสดงว่าใครขาดเรียน'); else note.push('ช่องนี้ไม่ผูกกับสัปดาห์ จึงไม่แสดงการขาดเรียน');
+    if (a.allowLate) note.push('ติ๊ก "ส่งช้า" แล้วระบบหัก ' + S.config.latePenalty + ' คะแนนอัตโนมัติ');
+    note.push('"x" = ให้นักเรียนแก้ไขงาน');
+    $('scNote').textContent = note.join(' · ');
+  }
+
+  function rowHtml(s, i) {
+    var a = sc.assignment, btns = '';
+    presets(a).forEach(function (v) {
+      btns += '<button class="sb' + (s.raw === v ? ' on' : '') + '" onclick="setScore(' + i + ',' + v + ')">' + v + '</button>';
+    });
+    btns += '<button class="sb' + (s.raw === 0 ? ' on' : '') + '" onclick="setScore(' + i + ',0)">0</button>';
+    btns += '<button class="sb x' + (s.score === 'x' ? ' on' : '') + '" onclick="setScore(' + i + ',\'x\')">x</button>';
+    var custom = '<input type="number" min="0" max="' + a.fullScore + '" step="0.05" placeholder="อื่นๆ" ' +
+      'onchange="setScore(' + i + ',this.value)" value="' + ((typeof s.raw === 'number' && presets(a).indexOf(s.raw) < 0 && s.raw !== 0) ? s.raw : '') + '">';
+    var late = a.allowLate ? '<label class="late"><input type="checkbox"' + (s.late ? ' checked' : '') +
+      (typeof s.raw === 'number' && s.raw > 0 ? '' : ' disabled') + ' onchange="setLate(' + i + ',this.checked)"> ส่งช้า (−' + S.config.latePenalty + ')</label>' : '';
+    var flag = '';
+    if (s.absent) flag = s.score === null
+      ? '<span class="flag">ขาดเรียนสัปดาห์ที่ ' + a.week + ' · ยังไม่มีคะแนนช่องนี้</span>'
+      : '<span class="flag soft">ขาดเรียนสัปดาห์ที่ ' + a.week + '</span>';
+    return '<span class="no">' + s.no + '</span>' +
+      '<span class="nm">' + esc(s.name) + flag + '</span>' +
+      '<span class="sc">' + btns + custom + late + '</span>' +
+      '<span class="pill ' + pillClass(s.status) + '" title="สถานะที่นักเรียนเห็น">' + esc(s.status) + '</span>' +
+      '<span class="save" id="ss' + i + '"></span>';
+  }
+
+  function renderScores() {
+    scChips();
+    if (!sc.students.length) { $('scList').innerHTML = '<div class="empty">ไม่พบนักเรียนในห้องนี้</div>'; return; }
+    $('scList').innerHTML = sc.students.map(function (s, i) {
+      return '<div class="row' + (s.absent && s.score === null ? ' absent' : '') + '" id="sr' + i + '">' + rowHtml(s, i) + '</div>';
+    }).join('');
+  }
+  function renderScoreRow(i) {
+    var s = sc.students[i], row = $('sr' + i);
+    row.className = 'row' + (s.absent && s.score === null ? ' absent' : '');
+    row.innerHTML = rowHtml(s, i);
+  }
+
+  function setScore(i, v) {
+    var s = sc.students[i], a = sc.assignment;
+    var val = v;
+    if (v === '' || v === null) val = '';
+    else if (v !== 'x') {
+      val = Number(v);
+      if (!isFinite(val) || val < 0 || val > a.fullScore) { toast('คะแนนต้องอยู่ระหว่าง 0 ถึง ' + a.fullScore, 'e'); renderScoreRow(i); return; }
+    }
+    // กดซ้ำที่ปุ่มเดิม = ล้างคะแนน
+    if (val !== '' && val === s.raw && !s.late) val = '';
+    var late = (val === 'x' || val === '' || val === 0) ? false : s.late;
+    commit(i, val, late);
+  }
+  function setLate(i, on) {
+    var s = sc.students[i];
+    if (typeof s.raw !== 'number' || s.raw <= 0) { renderScoreRow(i); return; }
+    commit(i, s.raw, on);
+  }
+
+  function commit(i, val, late) {
+    var s = sc.students[i], a = sc.assignment, prev = JSON.parse(JSON.stringify(s));
+    // แสดงผลทันทีแบบคาดการณ์ แล้วค่อยแทนด้วยค่าจริงจากเซิร์ฟเวอร์
+    if (val === 'x') { s.raw = 'x'; s.score = 'x'; s.late = false; s.status = 'แก้ไข'; }
+    else if (val === '') { s.raw = null; s.score = null; s.late = false; s.status = 'รอบันทึก'; }
+    else {
+      s.raw = val; s.late = late;
+      s.score = late ? Math.max(0, Math.round((val - S.config.latePenalty) * 100) / 100) : val;
+      s.status = late ? 'ส่งช้า' : 'รอบันทึก';
+    }
+    renderScoreRow(i); scChips();
+    $('ss' + i).textContent = '…';
+    rpc('teacherSetScore', [tok, s.studentId, a.key, val, late]).then(function (res) {
+      if (!res.success) throw new Error(res.message);
+      s.score = res.score; s.raw = res.raw === undefined ? null : res.raw; s.late = res.late; s.status = res.status;
+      if (sc.students[i] !== s) return;
+      renderScoreRow(i); scChips();
+      var el = $('ss' + i); if (el) el.textContent = '✓';
+    }).catch(function (e) {
+      if (e.message === 'expired') return;
+      Object.keys(prev).forEach(function (k) { s[k] = prev[k]; });
+      if (sc.students[i] === s) { renderScoreRow(i); scChips(); }
+      toast('บันทึกไม่สำเร็จ: ' + e.message, 'e');
+    });
+  }
+
+  /* =================== นักเรียน / รีเซ็ตรหัส =================== */
+  function loadStudents() {
+    var room = $('stuRoom').value; store('gc_room', room);
+    $('stuList').innerHTML = '<div class="empty">กำลังโหลด...</div>';
+    rpc('teacherGetStudents', [tok, room]).then(function (res) {
+      if (room !== $('stuRoom').value) return;
+      if (!res.success) { $('stuList').innerHTML = '<div class="empty">' + esc(res.message) + '</div>'; return; }
+      stu = res; setPending(res.requests.length); renderStudents();
+    }).catch(function (e) { if (e.message !== 'expired') $('stuList').innerHTML = '<div class="empty">เชื่อมต่อไม่สำเร็จ</div>'; });
+  }
+
+  function renderStudents() {
+    var reqs = stu.requests;
+    $('reqBox').innerHTML = reqs.length ? '<div class="req-card"><h4>คำขอรีเซ็ตรหัสผ่าน (' + reqs.length + ')</h4>' +
+      '<div class="note" style="color:var(--amber)">ยืนยันตัวตนกับนักเรียนก่อนกดอนุญาต เมื่ออนุญาตแล้ว นักเรียนต้องกลับไปลงทะเบียนตั้งรหัสใหม่</div>' +
+      reqs.map(function (r) {
+        return '<div class="req"><div class="who">' + esc(r.fullName) + '<small>' + esc(r.classRoom) + ' · เลขประจำตัว ' + esc(r.studentId) + ' · ขอเมื่อ ' + esc(r.requestedAt) + '</small></div>' +
+          '<button class="ok-btn" onclick="approve(\'' + esc(r.studentId) + '\')">อนุญาตรีเซ็ต</button>' +
+          '<button class="no-btn" onclick="dismiss(\'' + esc(r.studentId) + '\')">ปฏิเสธ</button></div>';
+      }).join('') + '</div>' : '';
+
+    var n = stu.students.length;
+    $('stuChips').innerHTML = '<span class="chip c-green">ลงทะเบียนแล้ว ' + stu.registeredCount + '</span>' +
+      '<span class="chip c-gray">ยังไม่ลงทะเบียน ' + (n - stu.registeredCount) + '</span><span class="chip c-purple">ทั้งหมด ' + n + ' คน</span>';
+    if (!n) { $('stuList').innerHTML = '<div class="empty">ไม่พบนักเรียนในห้องนี้</div>'; return; }
+    $('stuList').innerHTML = stu.students.map(function (s, i) {
+      var st = s.resetPending ? '<span class="pill p-yellow">รอรีเซ็ต</span>' :
+        (s.registered ? '<span class="pill p-green">ลงทะเบียนแล้ว</span>' : '<span class="pill p-gray">ยังไม่ลงทะเบียน</span>');
+      var btn = s.registered ? '<button class="reset-btn" id="rb' + i + '" onclick="askReset(' + i + ')">รีเซ็ตรหัสผ่าน</button>' : '';
+      return '<div class="row"><span class="no">' + s.no + '</span>' +
+        '<span class="nm">' + esc(s.name) + '<small>' + esc(s.studentId) + (s.nickName ? ' · ชื่อเล่น ' + esc(s.nickName) : '') + '</small></span>' +
+        st + btn + '</div>';
+    }).join('');
+  }
+
+  function askReset(i) {
+    var b = $('rb' + i);
+    if (b.classList.contains('sure')) { doReset(stu.students[i].studentId); return; }
+    b.classList.add('sure'); b.textContent = 'ยืนยันรีเซ็ต?';
+    setTimeout(function () { if (b && b.classList.contains('sure')) { b.classList.remove('sure'); b.textContent = 'รีเซ็ตรหัสผ่าน'; } }, 4000);
+  }
+  function doReset(id) {
+    rpc('teacherResetPassword', [tok, id]).then(function (res) {
+      if (!res.success) { toast(res.message, 'e'); return; }
+      toast('รีเซ็ตแล้ว นักเรียนไปลงทะเบียนตั้งรหัสใหม่ได้', 's'); loadStudents();
+    }).catch(function (e) { if (e.message !== 'expired') toast('ไม่สำเร็จ', 'e'); });
+  }
+  function approve(id) { doReset(id); }
+  function dismiss(id) {
+    rpc('teacherDismissReset', [tok, id]).then(function (res) {
+      if (!res.success) { toast(res.message, 'e'); return; }
+      toast('ปฏิเสธคำขอแล้ว', 's'); loadStudents();
+    }).catch(function (e) { if (e.message !== 'expired') toast('ไม่สำเร็จ', 'e'); });
+  }
+
+  /* ---- เริ่มต้น: กลับเข้าด้วย session เดิมถ้ายังไม่หมดอายุ ---- */
+  (function () {
+    var t = load('gc_t');
+    if (t) { tok = t; init(); }
+  })();
+</script>
+</body>
+</html>
