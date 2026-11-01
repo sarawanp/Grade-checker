@@ -69,6 +69,7 @@
     .seg { display: flex; gap: 6px; flex: none; }
     .seg button { border: 1.5px solid #E3E1EE; background: #fff; border-radius: 10px; padding: 7px 14px; font-weight: 500; color: #666; min-width: 56px; }
     .seg button.p.on { background: var(--green-bg); border-color: #6EE7B7; color: var(--green); }
+    .seg button.l.on { background: #E0F2FE; border-color: #7DD3FC; color: #0369A1; }
     .seg button.a.on { background: var(--red-bg); border-color: #FCA5A5; color: var(--red); }
 
     .sc { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex: 2; min-width: 260px; }
@@ -85,6 +86,8 @@
     .p-yellow { background: var(--amber-bg); color: var(--amber); } .p-orange { background: var(--orange-bg); color: var(--orange); }
     .p-gray { background: var(--gray-bg); color: var(--gray); }
     .flag { display: block; margin-top: 3px; font-size: 12px; color: var(--red); background: var(--red-bg); border-radius: 8px; padding: 2px 8px; width: fit-content; }
+    .flag.leave { color: #0369A1; background: #E0F2FE; }
+    .c-blue { background: #E0F2FE; color: #0369A1; }
     .flag.soft { color: var(--gray); background: var(--gray-bg); }
     .save { width: 18px; flex: none; font-size: 13px; color: var(--green); text-align: center; }
     .save.err { color: #EF4444; }
@@ -161,6 +164,11 @@
       <div class="controls">
         <div class="f"><label for="scRoom">ห้อง</label><select id="scRoom" onchange="loadScores()"></select></div>
         <div class="f" style="flex:1"><label for="asgSel">ช่องคะแนน</label><select id="asgSel" onchange="loadScores()"></select></div>
+      </div>
+      <div class="controls">
+        <div class="f"><label for="scDue">งานนี้ให้ส่งสัปดาห์ที่</label><select id="scDue" onchange="setDue()"></select></div>
+        <div class="f"><label for="scNow">สัปดาห์ปัจจุบัน</label><select id="scNow" onchange="store('gc_now', this.value)"></select></div>
+        <div class="note" style="flex:1;min-width:180px;align-self:flex-end;margin:0">ถ้ายังไม่ระบุสัปดาห์ส่ง ระบบจะบันทึกเป็น "สัปดาห์ปัจจุบัน" ตอนให้คะแนนคนแรก (แก้ได้ภายหลัง)</div>
       </div>
       <div class="chips" id="scChips"></div>
       <div class="note" id="scNote"></div>
@@ -249,6 +257,9 @@
       for (var i = 1; i <= res.config.weeks; i++) w += '<option value="' + i + '">สัปดาห์ที่ ' + i + '</option>';
       $('attWeek').innerHTML = w;
       $('attWeek').value = load('gc_week') || '1';
+      $('scNow').innerHTML = w;
+      $('scNow').value = load('gc_now') || $('attWeek').value;
+      $('scDue').innerHTML = '<option value="">ยังไม่ระบุ</option>' + w;
 
       var groups = [], cur = null;
       res.assignments.forEach(function (a) {
@@ -287,6 +298,7 @@
   function loadAtt() {
     var room = $('attRoom').value, week = $('attWeek').value;
     store('gc_room', room); store('gc_week', week);
+    if (!load('gc_now')) $('scNow').value = week;   // ยังไม่ได้เลือกเอง = ตามสัปดาห์ที่กำลังเช็คชื่อ
     $('attList').innerHTML = '<div class="empty">กำลังโหลด...</div>';
     rpc('teacherGetAttendance', [tok, room, Number(week)]).then(function (res) {
       if (room !== $('attRoom').value || week !== $('attWeek').value) return;
@@ -296,10 +308,10 @@
   }
 
   function attChips() {
-    var c = { p: 0, a: 0, b: 0 };
-    att.students.forEach(function (s) { if (s.mark === 'มา') c.p++; else if (s.mark === 'ไม่มา') c.a++; else c.b++; });
+    var c = { p: 0, l: 0, a: 0, b: 0 };
+    att.students.forEach(function (s) { if (s.mark === 'มา') c.p++; else if (s.mark === 'ลา') c.l++; else if (s.mark === 'ไม่มา') c.a++; else c.b++; });
     $('attChips').innerHTML =
-      '<span class="chip c-green">มา ' + c.p + '</span><span class="chip c-red">ไม่มา ' + c.a + '</span>' +
+      '<span class="chip c-green">มา ' + c.p + '</span><span class="chip c-blue">ลา ' + c.l + '</span><span class="chip c-red">ไม่มา ' + c.a + '</span>' +
       '<span class="chip c-gray">ยังไม่เช็ค ' + c.b + '</span><span class="chip c-purple">ทั้งหมด ' + att.students.length + ' คน</span>';
   }
 
@@ -311,6 +323,7 @@
         '<span class="no">' + s.no + '</span>' + avatar(s) +
         '<span class="nm">' + (s.nick ? '<span class="nick">' + esc(s.nick) + '</span><small>' + esc(s.name) + '</small>' : esc(s.name) + '<small>ยังไม่ลงทะเบียน</small>') + '</span>' +
         '<span class="seg"><button class="p' + (s.mark === 'มา' ? ' on' : '') + '" onclick="mark(' + i + ',\'มา\')">มา</button>' +
+        '<button class="l' + (s.mark === 'ลา' ? ' on' : '') + '" onclick="mark(' + i + ',\'ลา\')">ลา</button>' +
         '<button class="a' + (s.mark === 'ไม่มา' ? ' on' : '') + '" onclick="mark(' + i + ',\'ไม่มา\')">ไม่มา</button></span>' +
         '<span class="save" id="as' + i + '"></span></div>';
     }).join('');
@@ -352,6 +365,7 @@
     var s = att.students[i], row = $('ar' + i);
     row.classList.toggle('absent', s.mark === 'ไม่มา');
     row.querySelector('.p').classList.toggle('on', s.mark === 'มา');
+    row.querySelector('.l').classList.toggle('on', s.mark === 'ลา');
     row.querySelector('.a').classList.toggle('on', s.mark === 'ไม่มา');
   }
   function attAll() {
@@ -364,15 +378,24 @@
   }
 
   /* =================== ลงคะแนน =================== */
-  function loadScores() {
+  function loadScores(quiet) {
     var room = $('scRoom').value, key = $('asgSel').value;
     store('gc_room', room); store('gc_asg', key);
-    $('scList').innerHTML = '<div class="empty">กำลังโหลด...</div>';
+    if (quiet !== true) $('scList').innerHTML = '<div class="empty">กำลังโหลด...</div>';
     rpc('teacherGetScores', [tok, room, key]).then(function (res) {
       if (room !== $('scRoom').value || key !== $('asgSel').value) return;
       if (!res.success) { $('scList').innerHTML = '<div class="empty">' + esc(res.message) + '</div>'; return; }
-      sc = res; renderScores();
+      sc = res; $('scDue').value = res.assignment.week ? String(res.assignment.week) : ''; renderScores();
     }).catch(function (e) { if (e.message !== 'expired') $('scList').innerHTML = '<div class="empty">เชื่อมต่อไม่สำเร็จ</div>'; });
+  }
+
+  function setDue() {
+    var key = $('asgSel').value, v = $('scDue').value;
+    rpc('teacherSetAssignmentWeek', [tok, key, v]).then(function (res) {
+      if (!res.success) { toast(res.message, 'e'); return; }
+      toast(res.week ? 'บันทึกแล้ว: งานนี้ส่งสัปดาห์ที่ ' + res.week : 'ล้างสัปดาห์ส่งแล้ว', 's');
+      loadScores(true);
+    }).catch(function (e) { if (e.message !== 'expired') toast('บันทึกไม่สำเร็จ', 'e'); });
   }
 
   function presets(a) {
@@ -401,10 +424,12 @@
     if (late) h += '<span class="chip c-amber">ส่งช้า ' + late + '</span>';
     var pend = sc.students.filter(function (s) { return s.absent && s.score === null; }).length;
     if (pend) h += '<span class="chip c-red">ขาดเรียนและยังไม่มีคะแนน ' + pend + ' คน</span>';
+    var pendL = sc.students.filter(function (s) { return s.leave && s.score === null; }).length;
+    if (pendL) h += '<span class="chip c-blue">ลาและยังไม่มีคะแนน ' + pendL + ' คน</span>';
     $('scChips').innerHTML = h;
     var note = [];
-    if (a.week) note.push('ช่องนี้ผูกกับสัปดาห์ที่ ' + a.week + ' ระบบจะแสดงว่าใครขาดเรียน'); else note.push('ช่องนี้ไม่ผูกกับสัปดาห์ จึงไม่แสดงการขาดเรียน');
-    if (a.allowLate) note.push('ติ๊ก "ส่งช้า" แล้วระบบหัก ' + S.config.latePenalty + ' คะแนนอัตโนมัติ');
+    if (a.week) note.push('งานนี้ส่งสัปดาห์ที่ ' + a.week + ' ระบบจะแสดงว่าใครลา/ขาดเรียนสัปดาห์นั้น'); else note.push('ยังไม่ระบุสัปดาห์ส่ง จึงยังไม่แสดงการลา/ขาดเรียน');
+    if (a.allowLate) note.push('ติ๊ก "ส่งช้า" แล้วระบบหัก ' + a.latePenalty + ' คะแนนอัตโนมัติ');
     note.push('"x" = ให้นักเรียนแก้ไขงาน');
     $('scNote').textContent = note.join(' · ');
   }
@@ -419,9 +444,12 @@
     var custom = '<input type="number" min="0" max="' + a.fullScore + '" step="0.05" placeholder="อื่นๆ" ' +
       'onchange="setScore(' + i + ',this.value)" value="' + ((typeof s.raw === 'number' && presets(a).indexOf(s.raw) < 0 && s.raw !== 0) ? s.raw : '') + '">';
     var late = a.allowLate ? '<label class="late"><input type="checkbox"' + (s.late ? ' checked' : '') +
-      (typeof s.raw === 'number' && s.raw > 0 ? '' : ' disabled') + ' onchange="setLate(' + i + ',this.checked)"> ส่งช้า (−' + S.config.latePenalty + ')</label>' : '';
+      (typeof s.raw === 'number' && s.raw > 0 ? '' : ' disabled') + ' onchange="setLate(' + i + ',this.checked)"> ส่งช้า (−' + a.latePenalty + ')</label>' : '';
     var flag = '';
-    if (s.absent) flag = s.score === null
+    if (s.leave) flag = s.score === null
+      ? '<span class="flag leave">ลา สัปดาห์ที่ ' + a.week + ' · ยังไม่มีคะแนนช่องนี้</span>'
+      : '<span class="flag leave">ลา สัปดาห์ที่ ' + a.week + '</span>';
+    else if (s.absent) flag = s.score === null
       ? '<span class="flag">ขาดเรียนสัปดาห์ที่ ' + a.week + ' · ยังไม่มีคะแนนช่องนี้</span>'
       : '<span class="flag soft">ขาดเรียนสัปดาห์ที่ ' + a.week + '</span>';
     return '<span class="no">' + s.no + '</span>' +
@@ -470,13 +498,18 @@
     else if (val === '') { s.raw = null; s.score = null; s.late = false; s.status = 'รอบันทึก'; }
     else {
       s.raw = val; s.late = late;
-      s.score = late ? Math.max(0, Math.round((val - S.config.latePenalty) * 100) / 100) : val;
+      s.score = late ? Math.max(0, Math.round((val - a.latePenalty) * 100) / 100) : val;
       s.status = late ? 'ส่งช้า' : 'รอบันทึก';
     }
     renderScoreRow(i); scChips();
     $('ss' + i).textContent = '…';
-    rpc('teacherSetScore', [tok, s.studentId, a.key, val, late]).then(function (res) {
+    rpc('teacherSetScore', [tok, s.studentId, a.key, val, late, Number($('scNow').value)]).then(function (res) {
       if (!res.success) throw new Error(res.message);
+      if (res.weekSet) {
+        a.week = res.weekSet; $('scDue').value = String(res.weekSet);
+        toast('บันทึกแล้ว: งานนี้ส่งสัปดาห์ที่ ' + res.weekSet, 's');
+        setTimeout(function () { loadScores(true); }, 300);
+      }
       s.score = res.score; s.raw = res.raw === undefined ? null : res.raw; s.late = res.late; s.status = res.status;
       if (sc.students[i] !== s) return;
       renderScoreRow(i); scChips();
