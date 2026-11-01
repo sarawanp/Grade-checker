@@ -3,12 +3,10 @@
  * google = { getMeta, batchGet, batchUpdate, valuesBatchUpdate, valuesClear, valuesAppend, driveList, driveThumb }
  */
 const vm = require('vm');
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 
-const MOCK_SRC = fs.readFileSync(path.join(__dirname, 'gas-mock.js'), 'utf8');
-const CODE_SRC = fs.readFileSync(path.join(__dirname, 'Code.gs'), 'utf8');
+/* โค้ดถูกฝังเป็นสตริงโดย build.js (ไม่อ่านไฟล์ตอนรัน เพราะ Netlify รวมโค้ดเป็นไฟล์เดียว) */
+const { MOCK_SRC, CODE_SRC } = require('./sources');
 const MOCK = new vm.Script(MOCK_SRC, { filename: 'gas-mock.js' });
 const CODE = new vm.Script(CODE_SRC, { filename: 'Code.gs' });
 
