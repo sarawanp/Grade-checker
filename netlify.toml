@@ -5,7 +5,6 @@
 
 [functions]
   node_bundler = "esbuild"
-  included_files = ["netlify/functions/lib/Code.gs", "netlify/functions/lib/gas-mock.js"]
 
 [[redirects]]
   from = "/api"
