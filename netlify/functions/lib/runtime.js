@@ -47,17 +47,55 @@ function readKv(values) {
   return map;
 }
 
+/* ฟังก์ชันอ่านอย่างเดียวของนักเรียน: ใช้ข้อมูลที่โหลดไว้ในเครื่องเดียวกันได้ไม่เกิน snapshotTtlMs (ลดจำนวนครั้งที่เรียก Google) */
+const SNAP_FNS = new Set(['getPublicConfig', 'getRegisterNames', 'getMyScores']);
+let SNAP = null;
+let SNAP_LOADING = null;
+
+async function loadSnap(google) {
+  const meta = await google.getMeta();
+  const titles = meta.map((m) => m.title);
+  let raw;
+  try { raw = titles.length ? await google.batchGet(titles) : {}; }
+  catch (e) {
+    /* รายชื่อชีตในแคชอาจเก่า (มีเครื่องอื่นเพิ่ม/ลบชีต) → ดึงใหม่แล้วลองอีกครั้ง */
+    if (!/Google API 400/.test(String(e && e.message))) throw e;
+    const m2 = await google.getMeta(true);
+    return { t: Date.now(), meta: m2, raw: await google.batchGet(m2.map((m) => m.title)) };
+  }
+  return { t: Date.now(), meta, raw };
+}
+
 async function handleApi(body, deps) {
-  const { google, env } = deps;
+  const { google } = deps;
   const fn = body && body.fn;
   const args = body && body.args;
   if (typeof fn !== 'string' || !ALLOWED.has(fn)) return { status: 404, json: { success: false, message: 'ไม่พบคำสั่ง' } };
   if (!Array.isArray(args) || args.length > 8) return { status: 400, json: { success: false, message: 'คำขอไม่ถูกต้อง' } };
+  const ttl = deps.snapshotTtlMs || 0;
+  if (ttl > 0 && SNAP_FNS.has(fn) && SNAP && Date.now() - SNAP.t < ttl) {
+    const r = await execute(fn, args, deps, SNAP, true);
+    if (r) return r;           /* null = ต้องใช้ข้อมูลล่าสุดจริง ๆ */
+  }
+  /* คำขออ่านที่มาพร้อมกันรอโหลดชุดเดียวกัน (ไม่ยิง Google คนละครั้ง) */
+  const shareable = ttl > 0 && SNAP_FNS.has(fn);
+  let snap;
+  if (shareable) {
+    if (!SNAP_LOADING) SNAP_LOADING = loadSnap(google).then((x) => { SNAP = x; SNAP_LOADING = null; return x; }, (e) => { SNAP_LOADING = null; throw e; });
+    snap = await SNAP_LOADING;
+    const r = await execute(fn, args, deps, snap, true);
+    if (r) return r;
+  }
+  snap = await loadSnap(google);
+  SNAP = shareable ? snap : null;
+  return execute(fn, args, deps, snap, false);
+}
 
-  /* 1) โหลดชีตทั้งหมดเข้าหน่วยความจำ */
-  const meta = await google.getMeta();
+async function execute(fn, args, deps, snap, dry) {
+  const { google, env } = deps;
+  const meta = snap.meta;
+  const raw = snap.raw;
   const titles = meta.map((m) => m.title);
-  const raw = titles.length ? await google.batchGet(titles) : {};
   const ctx = newContext(env);
 
   const sheetsForGas = titles.filter((t) => t !== CACHE_SHEET && t !== PROPS_SHEET).map((t) => ({ name: t, values: raw[t] || [] }));
@@ -130,6 +168,7 @@ async function handleApi(body, deps) {
     resultJson = vm.runInContext('JSON.stringify(globalThis[__fn].apply(null, JSON.parse(__argsJson)))', ctx, { timeout: 8000 });
   } catch (e) {
     console.error('function error', fn, e && e.stack || e);
+    if (dry) return null;
     return { status: 500, json: { success: false, message: 'ระบบขัดข้อง ลองใหม่อีกครั้ง' } };
   }
 
@@ -137,12 +176,30 @@ async function handleApi(body, deps) {
   const sheetChanges = JSON.parse(vm.runInContext('__sheetExport()', ctx));
   const cacheChanges = JSON.parse(vm.runInContext('__cacheExport()', ctx));
   const propChanges = JSON.parse(vm.runInContext('__propsExport()', ctx));
+  const hasChanges = sheetChanges.length || cacheChanges.length || propChanges.length;
+  if (dry) {
+    let ok = true;
+    try { const j = JSON.parse(resultJson === undefined ? 'null' : resultJson); ok = !(j && j.success === false); } catch (_) { ok = false; }
+    if (hasChanges || !ok) return null;
+  }
+  if (hasChanges) SNAP = null;
   await flush(google, meta, sheetChanges, cacheChanges, propChanges, cacheKv, propsKv, raw);
 
   return { status: 200, json: resultJson === undefined ? null : JSON.parse(resultJson) };
 }
 
 async function flush(google, meta, sheetChanges, cacheChanges, propChanges, cacheKv, propsKv, raw) {
+  /* meta อาจมาจากแคช: ถ้าจะสร้างชีต/ขยายตาราง ให้ดึงข้อมูลล่าสุดก่อน เพื่อไม่ให้สร้างซ้ำหรือทำตารางเล็กลง */
+  {
+    const t0 = {}; meta.forEach((m) => { t0[m.title] = m; });
+    let need = (cacheChanges.length && !t0[CACHE_SHEET]) || (propChanges.length && !t0[PROPS_SHEET]);
+    sheetChanges.forEach((s) => {
+      if (s.isNew || s.origName !== s.name) need = true;
+      const m = t0[s.name];
+      if (m && !s.isNew) s.dirty.forEach((d) => { if (d[0] > m.rows || d[1] > m.cols) need = true; });
+    });
+    if (need && google.getMeta) meta = await google.getMeta(true);
+  }
   const byTitle = {};
   meta.forEach((m) => { byTitle[m.title] = m; });
   const structural = [];
@@ -227,8 +284,12 @@ async function flush(google, meta, sheetChanges, cacheChanges, propChanges, cach
     prune = [KV_HEAD].concat(live);
   }
 
-  if (data.length) await google.valuesBatchUpdate(data);
-  for (const a of appends) await google.valuesAppend(a.title, [a.row]);
+  const grouped = {};
+  appends.forEach((a) => { (grouped[a.title] = grouped[a.title] || []).push(a.row); });
+  const jobs = [];
+  if (data.length) jobs.push(google.valuesBatchUpdate(data));
+  Object.keys(grouped).forEach((t) => jobs.push(google.valuesAppend(t, grouped[t])));
+  await Promise.all(jobs);
   if (prune) { await google.valuesClear(CACHE_SHEET); await google.valuesBatchUpdate([{ range: q(CACHE_SHEET) + '!A1:C' + prune.length, values: prune }]); }
 }
 

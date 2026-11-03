@@ -10,20 +10,42 @@ function createGoogle(env) {
   if (!creds.client_email || !creds.private_key) throw new Error('missing service account credentials');
   const jwt = new JWT({ email: creds.client_email, key: creds.private_key, scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.readonly'] });
   const base = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheetId);
+  let metaCache = null;
   const q = (t) => "'" + String(t).replace(/'/g, "''") + "'";
 
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  /* ลองใหม่เมื่อโดนจำกัดโควตา (429) หรือ Google ขัดข้องชั่วคราว (5xx) โดยรอแบบทวีคูณ + สุ่ม ไม่เกิน ~6 วินาที */
   async function call(url, opt) {
-    const { token } = await jwt.getAccessToken();
-    const res = await fetch(url, Object.assign({}, opt, { headers: Object.assign({ Authorization: 'Bearer ' + token }, (opt && opt.headers) || {}) }));
-    if (!res.ok) { const t = await res.text(); throw new Error('Google API ' + res.status + ': ' + t.slice(0, 300)); }
-    return res;
+    const t0 = Date.now();
+    for (let attempt = 0; ; attempt++) {
+      let res, netErr;
+      try {
+        const { token } = await jwt.getAccessToken();
+        res = await fetch(url, Object.assign({}, opt, { headers: Object.assign({ Authorization: 'Bearer ' + token }, (opt && opt.headers) || {}) }));
+      } catch (e) { netErr = e; }
+      if (res && res.ok) return res;
+      const status = res ? res.status : 0;
+      const retriable = netErr || status === 429 || status >= 500;
+      const wait = Math.min(2500, 400 * Math.pow(2, attempt)) * (0.6 + Math.random() * 0.8);
+      if (!retriable || attempt >= 5 || Date.now() - t0 + wait > 6000) {
+        const t = res ? await res.text() : String(netErr && netErr.message);
+        const err = new Error('Google API ' + status + ': ' + String(t).slice(0, 300));
+        err.status = status;
+        throw err;
+      }
+      if (res) await res.text().catch(() => '');
+      await sleep(wait);
+    }
   }
   const post = (url, body) => call(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json());
 
   return {
-    async getMeta() {
+    async getMeta(fresh) {
+      if (!fresh && metaCache && Date.now() - metaCache.t < 60000) return metaCache.v;
       const r = await (await call(base + '?fields=sheets.properties(sheetId,title,index,gridProperties(rowCount,columnCount))')).json();
-      return r.sheets.map((s) => ({ sheetId: s.properties.sheetId, title: s.properties.title, rows: s.properties.gridProperties.rowCount, cols: s.properties.gridProperties.columnCount }));
+      const v = r.sheets.map((s) => ({ sheetId: s.properties.sheetId, title: s.properties.title, rows: s.properties.gridProperties.rowCount, cols: s.properties.gridProperties.columnCount }));
+      metaCache = { t: Date.now(), v };
+      return v;
     },
     async batchGet(titles) {
       const qs = titles.map((t) => 'ranges=' + encodeURIComponent(q(t))).join('&');
@@ -32,7 +54,7 @@ function createGoogle(env) {
       titles.forEach((t, i) => { out[t] = (r.valueRanges[i] && r.valueRanges[i].values) || []; });
       return out;
     },
-    batchUpdate(requests) { return post(base + ':batchUpdate', { requests }); },
+    batchUpdate(requests) { metaCache = null; return post(base + ':batchUpdate', { requests }); },
     valuesBatchUpdate(data) { return post(base + '/values:batchUpdate', { valueInputOption: 'RAW', data }); },
     valuesClear(title) { return post(base + '/values/' + encodeURIComponent(q(title)) + ':clear', {}); },
     valuesAppend(title, rows) {
