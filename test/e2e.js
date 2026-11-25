@@ -60,22 +60,39 @@ const eq = (a, b, m) => ok(JSON.stringify(a) === JSON.stringify(b), m + ' | got 
   r = await api('teacherSetAttendanceBulk', T, 'ม.4.1', 1, 'มา', true); ok(r.success, 'bulk');
   r = await api('teacherSetAttendance', T, '69981416', 1, 'ไม่มา'); ok(r.success, 'absent');
   let a = await api('teacherGetAttendance', T, 'ม.4.1', 1);
-  eq(a.summary, { present: 34, absent: 1, blank: 0, total: 35 }, 'attendance persisted');
+  eq(a.summary, { present: 34, leave: 0, absent: 1, blank: 0, total: 35 }, 'attendance persisted');
   eq(a.students.find((s) => s.studentId === '69981416').nick, 'ก้อง', 'nickname in attendance');
   eq(a.photosReady, true, 'photos configured via env');
-  let sg = await api('teacherGetScores', T, 'ม.4.1', 'ws1'); eq(sg.pendingAbsent, 1, 'absent flagged');
+  /* จำลองชีตเก่าที่ยังมีคอลัมน์ week (ไม่มี dueWeek) แล้วดูว่าระบบเพิ่มคอลัมน์ใหม่ให้เอง */
+const asgSheet = g.get('assignments'); asgSheet.values[0][11] = 'week'; asgSheet.values.slice(1).forEach((r, i) => { r[11] = i + 1; });
+let sg = await api('teacherGetScores', T, 'ม.4.1', 'ws1'); eq([sg.pendingAbsent, sg.assignment.week], [0, null], 'legacy week column ignored');
+r = await api('teacherSetAttendance', T, '69980075', 1, 'ลา'); ok(r.success, 'leave mark');
+r = await api('teacherSetScore', T, '69980143', 'ws1', 2, false, 1); eq(r.weekSet, 1, 'first score sets due week from current week');
+ok(g.get('assignments').values[0][12] === 'dueWeek', 'dueWeek column appended to legacy sheet');
+sg = await api('teacherGetScores', T, 'ม.4.1', 'ws1'); eq([sg.assignment.week, sg.pendingAbsent, sg.pendingLeave], [1, 1, 1], 'week persisted; absent + leave flagged');
+r = await api('teacherSetScore', T, '69980037', 'lab1', 1, true, 1); eq([r.score, r.late], [0.5, true], 'lab late = -0.5 via Netlify path');
+r = await api('teacherSetAssignmentWeek', T, 'lab1', 2); ok(r.success && r.week === 2, 'set assignment week');
 
   r = await api('teacherSetScore', T, '69980020', 'ws1', 2, true); eq([r.score, r.status], [1, 'ส่งช้า'], 'late deduct');
   r = await api('teacherSetScore', T, '69980075', 'ws1', 'x', false); eq([r.score, r.status], ['x', 'แก้ไข'], 'x');
-  r = await api('teacherSetScore', T, '69981416', 'lab1', 1, true); eq(r.score, 0, 'lab late');
+  r = await api('teacherSetScore', T, '69981416', 'lab1', 1, true); eq(r.score, 0.5, 'lab late = 1 - 0.5');
   sg = await api('teacherGetScores', T, 'ม.4.1', 'ws1');
   eq(sg.students.find((s) => s.studentId === '69980020').raw, 2, 'raw recovered from sheet');
   const hdr = g.get('scores').values[0];
   eq(hdr[hdr.length - 1], 'updatedAt', 'updatedAt still last after on-demand status col'); ok(hdr.includes('ws1_status'), 'status col added');
   ok(g.get('scores').values.length === 220, 'no rows lost by structural rewrite');
   my = await api('getMyScores', tokS);
-  eq([my.items.find((i) => i.key === 'lab1').score, my.items.find((i) => i.key === 'lab1').status], [0, 'ส่งช้า'], 'student sees late');
+  eq([my.items.find((i) => i.key === 'lab1').score, my.items.find((i) => i.key === 'lab1').status], [0.5, 'ส่งช้า'], 'student sees late');
   ok(typeof my.updatedAt === 'string' && /\d+\/\d+\/\d{4} \d\d:\d\d/.test(my.updatedAt), 'updatedAt formatted: ' + my.updatedAt);
+
+  /* ----- หน้าลงคะแนนแบบจับคู่ แบบฝึกหัด + แลป ----- */
+  let pr = await api('teacherGetScorePair', T, 'ม.4.1', 'ws1', 'lab1');
+  ok(pr.success && pr.items.length === 2 && pr.items[0].key === 'ws1' && pr.items[1].key === 'lab1', 'pair returns 2 items');
+  const pm = pr.students.find((s) => s.studentId === '69981416');
+  eq([pm.nick, pm.cells.length, pm.cells[0].raw, pm.cells[1].score, pm.cells[1].late], ['ก้อง', 2, null, 0.5, true], 'pair cells + nick + late lab');
+  ok(pr.photosReady === true && pr.students.length === 35, 'pair photosReady + all students');
+  const p1 = await api('teacherGetScorePair', T, 'ม.4.1', 'ws1', ''); ok(p1.success && p1.items.length === 1 && p1.students[0].cells.length === 1, 'single mode');
+  ok(!(await api('teacherGetScorePair', 'bad', 'ม.4.1', 'ws1', 'lab1')).success, 'pair needs teacher token');
 
   /* ----- รีเซ็ต ----- */
   let sl = await api('teacherGetStudents', T, 'ม.4.1'); eq(sl.requests.length, 1, 'request visible');

@@ -840,7 +840,27 @@ function findAssignment_(key) {
 
 /** ตารางคะแนนของงานหนึ่งช่อง ทั้งห้อง พร้อมข้อมูลการขาดเรียนของสัปดาห์นั้น */
 function teacherGetScores(token, classRoom, key) {
+  return teacherGuard_(token, () => scoresFor_(classRoom, key));
+}
+
+/** หน้าลงคะแนนแบบ 2 แถว: แบบฝึกหัด + แลป (หรือช่องเดี่ยวถ้า keyB ว่าง) ดึงในคำขอเดียว พร้อมชื่อเล่น */
+function teacherGetScorePair(token, classRoom, keyA, keyB) {
   return teacherGuard_(token, () => {
+    const keys = [keyA, keyB].filter(k => str_(k) !== '');
+    if (!keys.length) throw new Error('ไม่พบช่องคะแนน');
+    const parts = keys.map(k => scoresFor_(classRoom, k));
+    const nicks = nickMap_();
+    const students = parts[0].students.map((s, i) => ({
+      studentId: s.studentId, no: s.no, name: s.name, nick: nicks[s.studentId] || '',
+      absent: parts.some(p => p.students[i].absent), leave: parts.some(p => p.students[i].leave),
+      cells: parts.map(p => { const t = p.students[i]; return { score: t.score, raw: t.raw, late: t.late, status: t.status }; })
+    }));
+    return { room: str_(classRoom), items: parts.map(p => p.assignment), students: students, photosReady: !!photoFolderId_() };
+  });
+}
+
+function scoresFor_(classRoom, key) {
+  {
     const a = findAssignment_(key);
     const info = assignmentInfo_(a);
     const k = info.key;
@@ -879,7 +899,7 @@ function teacherGetScores(token, classRoom, key) {
       pendingAbsent: students.filter(s => s.absent && s.score === null).length,
       pendingLeave: students.filter(s => s.leave && s.score === null).length
     };
-  });
+  }
 }
 
 /**

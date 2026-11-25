@@ -76,7 +76,8 @@
     .sb { border: 1.5px solid #E3E1EE; background: #fff; border-radius: 10px; padding: 6px 0; min-width: 40px; font-weight: 600; color: #555; }
     .sb:hover { border-color: var(--primary); }
     .sb.on { background: var(--primary); border-color: var(--primary); color: #fff; }
-    .sb.x.on { background: var(--orange); border-color: var(--orange); }
+    .sb.x.on { background: var(--orange); border-color: var(--orange); color: #fff; }
+    .sb.x.on { color: #fff !important; }
     .sb.x { color: var(--orange); }
     .sc input[type=number] { width: 66px; padding: 6px 8px; }
     .late { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--amber); white-space: nowrap; }
@@ -92,6 +93,18 @@
     .save { width: 18px; flex: none; font-size: 13px; color: var(--green); text-align: center; }
     .save.err { color: #EF4444; }
 
+    /* ลงคะแนน: 1 นักเรียน = 1 บล็อก มีแถวแบบฝึกหัดและแถวแลปต่อกัน */
+    .stu { border-bottom: 1px solid var(--line); padding: 10px 4px 12px; }
+    .stu.absent { background: #FFF7F7; }
+    .shead { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .shead .nm { min-width: 0; }
+    .shead .nm .full { font-size: 15px; font-weight: 600; }
+    .shead .nm .nk { font-weight: 500; color: var(--primary-d); }
+    .cells { margin-left: 38px; display: flex; flex-direction: column; gap: 6px; }
+    .cell { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--soft); border-radius: 12px; padding: 7px 10px; }
+    .cell .sc { flex: 1; min-width: 250px; }
+    .ctype { width: 84px; flex: none; font-size: 12.5px; font-weight: 600; border-radius: 8px; padding: 4px 0; text-align: center; }
+    .ct-ex { background: #EDE9FE; color: var(--primary-d); } .ct-lab { background: #DCFCE7; color: #166534; } .ct-oth { background: var(--gray-bg); color: var(--gray); }
     .req-card { background: var(--amber-bg); border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
     .req-card h4 { margin: 0 0 8px; font-size: 14px; color: var(--amber); }
     .req { display: flex; align-items: center; gap: 10px; padding: 6px 0; flex-wrap: wrap; }
@@ -110,7 +123,7 @@
     .toast.s { background: var(--green-bg); color: #065F46; border: 1px solid #A7F3D0; }
     @media (max-width: 640px) {
       #app { padding: 10px; } .panel { padding: 14px 12px; } .tab { font-size: 13px; }
-      .sc { min-width: 100%; } #asgSel { min-width: 100%; } .controls .f { flex: 1; }
+      .sc { min-width: 100%; } .cells { margin-left: 0; } #asgSel { min-width: 100%; } .controls .f { flex: 1; }
     }
   </style>
 </head>
@@ -163,10 +176,10 @@
     <section id="tab-score" class="card panel hidden">
       <div class="controls">
         <div class="f"><label for="scRoom">ห้อง</label><select id="scRoom" onchange="loadScores()"></select></div>
-        <div class="f" style="flex:1"><label for="asgSel">ช่องคะแนน</label><select id="asgSel" onchange="loadScores()"></select></div>
+        <div class="f" style="flex:1"><label for="asgSel">ครั้งที่ / ช่องคะแนน</label><select id="asgSel" onchange="loadScores()"></select></div>
       </div>
       <div class="controls">
-        <div class="f"><label for="scDue">งานนี้ให้ส่งสัปดาห์ที่</label><select id="scDue" onchange="setDue()"></select></div>
+        <div class="f"><label for="scDue">ให้ส่งสัปดาห์ที่</label><select id="scDue" onchange="setDue()"></select></div>
         <div class="f"><label for="scNow">สัปดาห์ปัจจุบัน</label><select id="scNow" onchange="store('gc_now', this.value)"></select></div>
         <div class="note" style="flex:1;min-width:180px;align-self:flex-end;margin:0">ถ้ายังไม่ระบุสัปดาห์ส่ง ระบบจะบันทึกเป็น "สัปดาห์ปัจจุบัน" ตอนให้คะแนนคนแรก (แก้ได้ภายหลัง)</div>
       </div>
@@ -261,18 +274,35 @@
       $('scNow').value = load('gc_now') || $('attWeek').value;
       $('scDue').innerHTML = '<option value="">ยังไม่ระบุ</option>' + w;
 
-      var groups = [], cur = null;
+      /* จับคู่ ชีทที่ N (แบบฝึกหัด) + แลปที่ N เป็น "ครั้งที่ N" ที่เหลือเป็นช่องเดี่ยว */
+      var byKey = {}, pairs = {}, used = {};
+      res.assignments.forEach(function (a) { byKey[a.key] = a; });
       res.assignments.forEach(function (a) {
+        var m = /^(ws|lab)(\d+)$/.exec(a.key);
+        if (m) { (pairs[m[2]] = pairs[m[2]] || {})[m[1]] = a; }
+      });
+      var html = '', nums = Object.keys(pairs).map(Number).sort(function (x, y) { return x - y; });
+      var pOpts = nums.map(function (n) {
+        var pr = pairs[n], ks = [];
+        if (pr.ws) { ks.push(pr.ws.key); used[pr.ws.key] = 1; }
+        if (pr.lab) { ks.push(pr.lab.key); used[pr.lab.key] = 1; }
+        return '<option value="' + esc(ks.join(',')) + '">ครั้งที่ ' + n + ' · ' + esc(ks.map(function (k) { return byKey[k].name; }).join(' + ')) + '</option>';
+      }).join('');
+      if (pOpts) html += '<optgroup label="แบบฝึกหัด + แลป (กรอกพร้อมกัน)">' + pOpts + '</optgroup>';
+      var groups = [], cur = null;
+      res.assignments.filter(function (a) { return !used[a.key]; }).forEach(function (a) {
         if (!cur || cur.chapter !== a.chapter) { cur = { chapter: a.chapter, items: [] }; groups.push(cur); }
         cur.items.push(a);
       });
-      $('asgSel').innerHTML = groups.map(function (g) {
-        return '<optgroup label="' + esc(g.chapter) + '">' + g.items.map(function (a) {
+      html += groups.map(function (g) {
+        return '<optgroup label="ช่องอื่น · ' + esc(g.chapter) + '">' + g.items.map(function (a) {
           return '<option value="' + esc(a.key) + '">' + esc(a.name) + ' (เต็ม ' + a.fullScore + ')' + (a.visible ? '' : ' [ซ่อน]') + '</option>';
         }).join('') + '</optgroup>';
       }).join('');
+      $('asgSel').innerHTML = html;
       var savedAsg = load('gc_asg');
       if (savedAsg) $('asgSel').value = savedAsg;
+      if (!$('asgSel').value && $('asgSel').options.length) $('asgSel').selectedIndex = 0;
 
       setPending(res.pendingResets);
       showTab(load('gc_tab') || 'att');
@@ -355,7 +385,8 @@
       if (!res || !res.success || !res.photos) return;
       Object.keys(res.photos).forEach(function (id) { photos[id] = res.photos[id]; });
       if (res.error) toast(res.error, 'e');
-      document.querySelectorAll('#attList .av').forEach(function (el) {
+      photoRoom = room;
+      document.querySelectorAll('#attList .av, #scList .av').forEach(function (el) {
         var u = photos[el.getAttribute('data-av')];
         if (u) { el.style.backgroundImage = 'url(' + u + ')'; el.textContent = ''; }
       });
@@ -379,21 +410,29 @@
 
   /* =================== ลงคะแนน =================== */
   function loadScores(quiet) {
-    var room = $('scRoom').value, key = $('asgSel').value;
-    store('gc_room', room); store('gc_asg', key);
+    var room = $('scRoom').value, sel = $('asgSel').value;
+    store('gc_room', room); store('gc_asg', sel);
     if (quiet !== true) $('scList').innerHTML = '<div class="empty">กำลังโหลด...</div>';
-    rpc('teacherGetScores', [tok, room, key]).then(function (res) {
-      if (room !== $('scRoom').value || key !== $('asgSel').value) return;
+    var ks = sel.split(',');
+    rpc('teacherGetScorePair', [tok, room, ks[0] || '', ks[1] || '']).then(function (res) {
+      if (room !== $('scRoom').value || sel !== $('asgSel').value) return;
       if (!res.success) { $('scList').innerHTML = '<div class="empty">' + esc(res.message) + '</div>'; return; }
-      sc = res; $('scDue').value = res.assignment.week ? String(res.assignment.week) : ''; renderScores();
+      sc = res; showDue(); renderScores();
+      if (res.photosReady && photoRoom !== room) loadPhotos(room);
     }).catch(function (e) { if (e.message !== 'expired') $('scList').innerHTML = '<div class="empty">เชื่อมต่อไม่สำเร็จ</div>'; });
   }
-
+  function showDue() {
+    var w = '';
+    sc.items.forEach(function (a) { if (!w && a.week) w = String(a.week); });
+    $('scDue').value = w;
+  }
   function setDue() {
-    var key = $('asgSel').value, v = $('scDue').value;
-    rpc('teacherSetAssignmentWeek', [tok, key, v]).then(function (res) {
-      if (!res.success) { toast(res.message, 'e'); return; }
-      toast(res.week ? 'บันทึกแล้ว: งานนี้ส่งสัปดาห์ที่ ' + res.week : 'ล้างสัปดาห์ส่งแล้ว', 's');
+    var v = $('scDue').value, keys = sc.items.map(function (a) { return a.key; });
+    var jobs = keys.map(function (k) { return rpc('teacherSetAssignmentWeek', [tok, k, v]); });
+    Promise.all(jobs).then(function (rs) {
+      var bad = rs.filter(function (r) { return !r.success; })[0];
+      if (bad) { toast(bad.message, 'e'); return; }
+      toast(v ? 'บันทึกแล้ว: ส่งสัปดาห์ที่ ' + v : 'ล้างสัปดาห์ส่งแล้ว', 's');
       loadScores(true);
     }).catch(function (e) { if (e.message !== 'expired') toast('บันทึกไม่สำเร็จ', 'e'); });
   }
@@ -414,66 +453,79 @@
     if (st === 'ได้บางส่วน' || st === 'ส่งช้า') return 'p-yellow';
     return 'p-gray';
   }
+  function typeTag(a) {
+    if (a.type === 'แบบฝึกหัด') return '<span class="ctype ct-ex">แบบฝึกหัด</span>';
+    if (a.type === 'แลป') return '<span class="ctype ct-lab">แลป</span>';
+    return '<span class="ctype ct-oth">' + esc(a.name) + '</span>';
+  }
+  function pending(s) { return s.cells.some(function (c) { return c.score === null; }); }
 
   function scChips() {
-    var a = sc.assignment, filled = 0, x = 0, late = 0;
-    sc.students.forEach(function (s) { if (s.score !== null) filled++; if (s.score === 'x') x++; if (s.late) late++; });
-    var h = '<span class="chip c-purple">' + esc(a.name) + ' · เต็ม ' + a.fullScore + '</span>' +
-      '<span class="chip c-gray">มีคะแนนแล้ว ' + filled + '/' + sc.students.length + '</span>';
-    if (x) h += '<span class="chip c-orange">แก้ไข ' + x + '</span>';
-    if (late) h += '<span class="chip c-amber">ส่งช้า ' + late + '</span>';
-    var pend = sc.students.filter(function (s) { return s.absent && s.score === null; }).length;
+    var h = '', n = sc.students.length;
+    sc.items.forEach(function (a, c) {
+      var filled = 0, x = 0, late = 0;
+      sc.students.forEach(function (s) { var d = s.cells[c]; if (d.score !== null) filled++; if (d.score === 'x') x++; if (d.late) late++; });
+      h += '<span class="chip c-purple">' + esc(a.name) + ' · เต็ม ' + a.fullScore + '</span>' +
+        '<span class="chip c-gray">มีคะแนนแล้ว ' + filled + '/' + n + '</span>';
+      if (x) h += '<span class="chip c-orange">แก้ไข ' + x + '</span>';
+      if (late) h += '<span class="chip c-amber">ส่งช้า ' + late + '</span>';
+    });
+    var pend = sc.students.filter(function (s) { return s.absent && pending(s); }).length;
     if (pend) h += '<span class="chip c-red">ขาดเรียนและยังไม่มีคะแนน ' + pend + ' คน</span>';
-    var pendL = sc.students.filter(function (s) { return s.leave && s.score === null; }).length;
+    var pendL = sc.students.filter(function (s) { return s.leave && pending(s); }).length;
     if (pendL) h += '<span class="chip c-blue">ลาและยังไม่มีคะแนน ' + pendL + ' คน</span>';
     $('scChips').innerHTML = h;
+    var wk = 0; sc.items.forEach(function (a) { if (!wk && a.week) wk = a.week; });
     var note = [];
-    if (a.week) note.push('งานนี้ส่งสัปดาห์ที่ ' + a.week + ' ระบบจะแสดงว่าใครลา/ขาดเรียนสัปดาห์นั้น'); else note.push('ยังไม่ระบุสัปดาห์ส่ง จึงยังไม่แสดงการลา/ขาดเรียน');
-    if (a.allowLate) note.push('ติ๊ก "ส่งช้า" แล้วระบบหัก ' + a.latePenalty + ' คะแนนอัตโนมัติ');
+    if (wk) note.push('ส่งสัปดาห์ที่ ' + wk + ' ระบบจะแสดงว่าใครลา/ขาดเรียนสัปดาห์นั้น'); else note.push('ยังไม่ระบุสัปดาห์ส่ง จึงยังไม่แสดงการลา/ขาดเรียน');
+    var pen = sc.items.filter(function (a) { return a.allowLate; }).map(function (a) { return a.type + ' −' + a.latePenalty; });
+    if (pen.length) note.push('ติ๊ก "ส่งช้า" ระบบหักคะแนนอัตโนมัติ (' + pen.join(', ') + ')');
     note.push('"x" = ให้นักเรียนแก้ไขงาน');
     $('scNote').textContent = note.join(' · ');
   }
 
-  function rowHtml(s, i) {
-    var a = sc.assignment, btns = '';
+  function cellHtml(s, i, c) {
+    var a = sc.items[c], d = s.cells[c], btns = '';
     presets(a).forEach(function (v) {
-      btns += '<button class="sb' + (s.raw === v ? ' on' : '') + '" onclick="setScore(' + i + ',' + v + ')">' + v + '</button>';
+      btns += '<button class="sb' + (d.raw === v ? ' on' : '') + '" onclick="setScore(' + i + ',' + c + ',' + v + ')">' + v + '</button>';
     });
-    btns += '<button class="sb' + (s.raw === 0 ? ' on' : '') + '" onclick="setScore(' + i + ',0)">0</button>';
-    btns += '<button class="sb x' + (s.score === 'x' ? ' on' : '') + '" onclick="setScore(' + i + ',\'x\')">x</button>';
+    btns += '<button class="sb' + (d.raw === 0 ? ' on' : '') + '" onclick="setScore(' + i + ',' + c + ',0)">0</button>';
+    btns += '<button class="sb x' + (d.score === 'x' ? ' on' : '') + '" onclick="setScore(' + i + ',' + c + ',\'x\')">x</button>';
     var custom = '<input type="number" min="0" max="' + a.fullScore + '" step="0.05" placeholder="อื่นๆ" ' +
-      'onchange="setScore(' + i + ',this.value)" value="' + ((typeof s.raw === 'number' && presets(a).indexOf(s.raw) < 0 && s.raw !== 0) ? s.raw : '') + '">';
-    var late = a.allowLate ? '<label class="late"><input type="checkbox"' + (s.late ? ' checked' : '') +
-      (typeof s.raw === 'number' && s.raw > 0 ? '' : ' disabled') + ' onchange="setLate(' + i + ',this.checked)"> ส่งช้า (−' + a.latePenalty + ')</label>' : '';
+      'onchange="setScore(' + i + ',' + c + ',this.value)" value="' + ((typeof d.raw === 'number' && presets(a).indexOf(d.raw) < 0 && d.raw !== 0) ? d.raw : '') + '">';
+    var late = a.allowLate ? '<label class="late"><input type="checkbox"' + (d.late ? ' checked' : '') +
+      (typeof d.raw === 'number' && d.raw > 0 ? '' : ' disabled') + ' onchange="setLate(' + i + ',' + c + ',this.checked)"> ส่งช้า (−' + a.latePenalty + ')</label>' : '';
+    return '<div class="cell">' + typeTag(a) + '<span class="sc">' + btns + custom + late + '</span>' +
+      '<span class="pill ' + pillClass(d.status) + '" title="สถานะที่นักเรียนเห็น">' + esc(d.status) + '</span>' +
+      '<span class="save" id="ss' + i + '_' + c + '"></span></div>';
+  }
+
+  function rowHtml(s, i) {
+    var wk = 0; sc.items.forEach(function (a) { if (!wk && a.week) wk = a.week; });
     var flag = '';
-    if (s.leave) flag = s.score === null
-      ? '<span class="flag leave">ลา สัปดาห์ที่ ' + a.week + ' · ยังไม่มีคะแนนช่องนี้</span>'
-      : '<span class="flag leave">ลา สัปดาห์ที่ ' + a.week + '</span>';
-    else if (s.absent) flag = s.score === null
-      ? '<span class="flag">ขาดเรียนสัปดาห์ที่ ' + a.week + ' · ยังไม่มีคะแนนช่องนี้</span>'
-      : '<span class="flag soft">ขาดเรียนสัปดาห์ที่ ' + a.week + '</span>';
-    return '<span class="no">' + s.no + '</span>' +
-      '<span class="nm">' + esc(s.name) + flag + '</span>' +
-      '<span class="sc">' + btns + custom + late + '</span>' +
-      '<span class="pill ' + pillClass(s.status) + '" title="สถานะที่นักเรียนเห็น">' + esc(s.status) + '</span>' +
-      '<span class="save" id="ss' + i + '"></span>';
+    if (s.leave) flag = '<span class="flag leave">ลา สัปดาห์ที่ ' + wk + (pending(s) ? ' · ยังไม่มีคะแนน' : '') + '</span>';
+    else if (s.absent) flag = pending(s) ? '<span class="flag">ขาดเรียนสัปดาห์ที่ ' + wk + ' · ยังไม่มีคะแนน</span>' : '<span class="flag soft">ขาดเรียนสัปดาห์ที่ ' + wk + '</span>';
+    var cells = sc.items.map(function (a, c) { return cellHtml(s, i, c); }).join('');
+    return '<div class="shead"><span class="no">' + s.no + '</span>' + avatar(s) +
+      '<span class="nm"><span class="full">' + esc(s.name) + (s.nick ? ' <span class="nk">(' + esc(s.nick) + ')</span>' : '') + '</span>' + flag + '</span></div>' +
+      '<div class="cells">' + cells + '</div>';
   }
 
   function renderScores() {
     scChips();
     if (!sc.students.length) { $('scList').innerHTML = '<div class="empty">ไม่พบนักเรียนในห้องนี้</div>'; return; }
     $('scList').innerHTML = sc.students.map(function (s, i) {
-      return '<div class="row' + (s.absent && s.score === null ? ' absent' : '') + '" id="sr' + i + '">' + rowHtml(s, i) + '</div>';
+      return '<div class="stu' + (s.absent && pending(s) ? ' absent' : '') + '" id="sr' + i + '">' + rowHtml(s, i) + '</div>';
     }).join('');
   }
   function renderScoreRow(i) {
     var s = sc.students[i], row = $('sr' + i);
-    row.className = 'row' + (s.absent && s.score === null ? ' absent' : '');
+    row.className = 'stu' + (s.absent && pending(s) ? ' absent' : '');
     row.innerHTML = rowHtml(s, i);
   }
 
-  function setScore(i, v) {
-    var s = sc.students[i], a = sc.assignment;
+  function setScore(i, c, v) {
+    var d = sc.students[i].cells[c], a = sc.items[c];
     var val = v;
     if (v === '' || v === null) val = '';
     else if (v !== 'x') {
@@ -481,42 +533,42 @@
       if (!isFinite(val) || val < 0 || val > a.fullScore) { toast('คะแนนต้องอยู่ระหว่าง 0 ถึง ' + a.fullScore, 'e'); renderScoreRow(i); return; }
     }
     // กดซ้ำที่ปุ่มเดิม = ล้างคะแนน
-    if (val !== '' && val === s.raw && !s.late) val = '';
-    var late = (val === 'x' || val === '' || val === 0) ? false : s.late;
-    commit(i, val, late);
+    if (val !== '' && val === d.raw && !d.late) val = '';
+    var late = (val === 'x' || val === '' || val === 0) ? false : d.late;
+    commit(i, c, val, late);
   }
-  function setLate(i, on) {
-    var s = sc.students[i];
-    if (typeof s.raw !== 'number' || s.raw <= 0) { renderScoreRow(i); return; }
-    commit(i, s.raw, on);
+  function setLate(i, c, on) {
+    var d = sc.students[i].cells[c];
+    if (typeof d.raw !== 'number' || d.raw <= 0) { renderScoreRow(i); return; }
+    commit(i, c, d.raw, on);
   }
 
-  function commit(i, val, late) {
-    var s = sc.students[i], a = sc.assignment, prev = JSON.parse(JSON.stringify(s));
+  function commit(i, c, val, late) {
+    var s = sc.students[i], d = s.cells[c], a = sc.items[c], prev = JSON.parse(JSON.stringify(d));
     // แสดงผลทันทีแบบคาดการณ์ แล้วค่อยแทนด้วยค่าจริงจากเซิร์ฟเวอร์
-    if (val === 'x') { s.raw = 'x'; s.score = 'x'; s.late = false; s.status = 'แก้ไข'; }
-    else if (val === '') { s.raw = null; s.score = null; s.late = false; s.status = 'รอบันทึก'; }
+    if (val === 'x') { d.raw = 'x'; d.score = 'x'; d.late = false; d.status = 'แก้ไข'; }
+    else if (val === '') { d.raw = null; d.score = null; d.late = false; d.status = 'รอบันทึก'; }
     else {
-      s.raw = val; s.late = late;
-      s.score = late ? Math.max(0, Math.round((val - a.latePenalty) * 100) / 100) : val;
-      s.status = late ? 'ส่งช้า' : 'รอบันทึก';
+      d.raw = val; d.late = late;
+      d.score = late ? Math.max(0, Math.round((val - a.latePenalty) * 100) / 100) : val;
+      d.status = late ? 'ส่งช้า' : 'รอบันทึก';
     }
     renderScoreRow(i); scChips();
-    $('ss' + i).textContent = '…';
+    $('ss' + i + '_' + c).textContent = '…';
     rpc('teacherSetScore', [tok, s.studentId, a.key, val, late, Number($('scNow').value)]).then(function (res) {
       if (!res.success) throw new Error(res.message);
       if (res.weekSet) {
-        a.week = res.weekSet; $('scDue').value = String(res.weekSet);
-        toast('บันทึกแล้ว: งานนี้ส่งสัปดาห์ที่ ' + res.weekSet, 's');
+        a.week = res.weekSet; showDue();
+        toast('บันทึกแล้ว: ส่งสัปดาห์ที่ ' + res.weekSet, 's');
         setTimeout(function () { loadScores(true); }, 300);
       }
-      s.score = res.score; s.raw = res.raw === undefined ? null : res.raw; s.late = res.late; s.status = res.status;
+      d.score = res.score; d.raw = res.raw === undefined ? null : res.raw; d.late = res.late; d.status = res.status;
       if (sc.students[i] !== s) return;
       renderScoreRow(i); scChips();
-      var el = $('ss' + i); if (el) el.textContent = '✓';
+      var el = $('ss' + i + '_' + c); if (el) el.textContent = '✓';
     }).catch(function (e) {
       if (e.message === 'expired') return;
-      Object.keys(prev).forEach(function (k) { s[k] = prev[k]; });
+      Object.keys(prev).forEach(function (k) { d[k] = prev[k]; });
       if (sc.students[i] === s) { renderScoreRow(i); scChips(); }
       toast('บันทึกไม่สำเร็จ: ' + e.message, 'e');
     });
